@@ -4,10 +4,7 @@
   <meta charset="utf-8" />
   <title>Graph Explorer</title>
 
-  <!-- Cytoscape -->
   <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
-
-  <!-- Layout engine (dramatic motion) -->
   <script src="https://unpkg.com/layout-base@2.0.1/layout-base.js"></script>
   <script src="https://unpkg.com/cose-base@2.2.0/cose-base.js"></script>
   <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
@@ -15,13 +12,11 @@
   <style>
     html, body { width:100%; height:100%; margin:0; font-family: Arial, sans-serif; background:#070A12; }
     #app { display:flex; width:100%; height:100%; }
-
     #cy {
       flex: 1;
       height: 100%;
       background: radial-gradient(circle at 30% 20%, #0b1230 0%, #070A12 45%, #050711 100%);
     }
-
     #side {
       width: 360px;
       border-left: 1px solid rgba(255,255,255,0.08);
@@ -31,11 +26,9 @@
       background: linear-gradient(180deg, rgba(15,18,34,0.98), rgba(8,10,18,0.98));
       color: #E9ECFF;
     }
-
     #toolbar {
       position: fixed;
-      top: 12px;
-      left: 12px;
+      top: 12px; left: 12px;
       z-index: 999;
       background: rgba(10,12,22,0.85);
       border: 1px solid rgba(255,255,255,0.10);
@@ -49,7 +42,6 @@
       color: #E9ECFF;
       max-width: 980px;
     }
-
     .btn {
       border: 1px solid rgba(255,255,255,0.18);
       background: rgba(255,255,255,0.06);
@@ -57,12 +49,9 @@
       padding: 7px 10px;
       border-radius: 10px;
       cursor: pointer;
-      transition: transform 0.08s ease, background 0.15s ease;
       user-select: none;
     }
-    .btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-1px); }
-    .btn:active { transform: translateY(0px); }
-
+    .btn:hover { background: rgba(255,255,255,0.12); }
     #search {
       width: 280px;
       padding: 8px 10px;
@@ -73,28 +62,8 @@
       outline: none;
     }
     #search::placeholder { color: rgba(233,236,255,0.6); }
-
-    #legend {
-      position: fixed;
-      bottom: 14px;
-      left: 14px;
-      z-index: 999;
-      background: rgba(10,12,22,0.80);
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 12px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.45);
-      padding: 10px 12px;
-      color: #E9ECFF;
-      font-size: 13px;
-      backdrop-filter: blur(8px);
-      max-width: 380px;
-    }
-    .lg-row { display:flex; align-items:center; gap:8px; margin: 6px 0; }
-    .swatch { width: 12px; height: 12px; border-radius: 4px; box-shadow: 0 0 14px currentColor; }
-
     h3 { margin: 8px 0 10px; }
     .muted { color: rgba(233,236,255,0.65); font-size: 12px; line-height: 1.4; }
-
     .kv { margin: 10px 0; }
     .k { font-size: 12px; color: rgba(233,236,255,0.65); }
     .v { font-size: 13px; word-break: break-word; color: #E9ECFF; }
@@ -105,38 +74,24 @@
 
 <body>
   <div id="toolbar">
-    <div style="font-weight:700; letter-spacing:0.3px;">⚡ Graph Explorer</div>
+    <div style="font-weight:700;">⚡ Graph Explorer</div>
     <div class="btn" id="btnHome">Home</div>
     <div class="btn" id="btnShowAll">Show all</div>
     <input id="search" placeholder="Search (any property), press Enter" />
     <div class="muted">Single click = details • Double click = expand</div>
   </div>
 
-  <div id="legend">
-    <div style="font-weight:700; margin-bottom:6px;">Legend</div>
-    <div class="lg-row"><div class="swatch" style="color:#00E5FF; background:#00E5FF;"></div> CircularValueChain</div>
-    <div class="lg-row"><div class="swatch" style="color:#FF2BD6; background:#FF2BD6;"></div> Partner</div>
-    <div class="lg-row"><div class="swatch" style="color:#9BFF3A; background:#9BFF3A;"></div> Deliverable</div>
-    <div class="lg-row"><div class="swatch" style="color:#FFD34A; background:#FFD34A;"></div> Phase / Other</div>
-    <div class="muted" style="margin-top:6px;">
-      Home shows 3 big hubs only. Double click a hub to reveal that category.
-    </div>
-  </div>
-
   <div id="app">
     <div id="cy"></div>
     <div id="side">
       <h3>Details</h3>
-      <div id="details" class="muted">Single click a node to view properties. Double click to expand.</div>
+      <div id="details" class="muted">Single click a node for details. Double click to expand.</div>
       <hr />
-      <div class="muted">
-        Tip: Use <b>Home</b> to return to the 3 hubs.
-      </div>
+      <div class="muted">Home should show exactly 3 nodes (the hubs).</div>
     </div>
   </div>
 
 <script>
-  // ---- Styling palette ----
   const COLORS = {
     HUB: "#B8BFFF",
     CircularValueChain: "#00E5FF",
@@ -145,7 +100,6 @@
     Other: "#FFD34A"
   };
 
-  // ---- Hub IDs (visual-only) ----
   const HUBS = [
     { id: "HUB_CVC", label: "CircularValueChain", title: "Circular Value Chains" },
     { id: "HUB_PARTNER", label: "Partner", title: "Partners" },
@@ -155,24 +109,8 @@
   let cy;
 
   function unwrapNeo4jBrowserJson(raw) {
-    // Neo4j Browser export: [ { "json": { "elements": { nodes, edges } } } ]
     if (Array.isArray(raw) && raw[0] && raw[0].json && raw[0].json.elements) return raw[0].json.elements;
-    if (raw && raw.elements) return raw.elements;
-    return null;
-  }
-
-  function nodeDisplayTitle(d) {
-    // Your requested labels:
-    // - Partner: abbreviation -> partners
-    // - Deliverable: deliverables_no
-    // - CircularValueChain: value_chains
-    const label = (d.labels && d.labels[0]) || "Other";
-    if (label === "Partner") return d.partners || d.partners_legalname || d.id;
-    if (label === "Deliverable") return d.deliverables_no || d.deliverables_name || d.id;
-    if (label === "CircularValueChain") return d.value_chains || d.id;
-
-    // fallback for others
-    return d.phase_id || d.demonstrations || d.id;
+    return raw?.elements ?? null;
   }
 
   function labelColor(label) {
@@ -182,69 +120,59 @@
     return COLORS.Other;
   }
 
+  function nodeDisplayTitle(d) {
+    const label = (d.labels && d.labels[0]) || "Other";
+    if (label === "Partner") return d.partners || d.partners_legalname || d.id;
+    if (label === "Deliverable") return d.deliverables_no || d.deliverables_name || d.id;
+    if (label === "CircularValueChain") return d.value_chains || d.id;
+    return d.phase_id || d.demonstrations || d.id;
+  }
+
   function showDetails(ele) {
     const d = ele.data();
-    const isHub = d.isHub === true;
-
     const head = `
       <div style="font-weight:700; font-size:16px; margin-bottom:6px;">${d.title || d.label || "Node"}</div>
       <div class="muted">Type: <code>${d.label || "Node"}</code></div>
       <hr />
     `;
 
-    if (isHub) {
+    if (d.kind === "hub") {
       document.getElementById("details").innerHTML = head + `
         <div class="muted">
-          This is a <b>category hub</b> (visual-only).
-          <br><br>
-          <b>Double click</b> to reveal nodes in this category.
-        </div>
-      `;
+          This is a category hub (visual-only).<br><br>
+          Double click to reveal its nodes.
+        </div>`;
       return;
     }
 
     const rows = Object.entries(d)
-      .filter(([k]) => !["color", "title", "isHub"].includes(k))
+      .filter(([k]) => !["color","title","kind"].includes(k))
       .sort((a,b) => a[0].localeCompare(b[0]))
-      .map(([k,v]) => `
-        <div class="kv">
-          <div class="k">${k}</div>
-          <div class="v">${String(v)}</div>
-        </div>
-      `).join("");
+      .map(([k,v]) => `<div class="kv"><div class="k">${k}</div><div class="v">${String(v)}</div></div>`)
+      .join("");
 
     document.getElementById("details").innerHTML = head + (rows || `<div class="muted">No properties</div>`);
   }
 
-  // ---- View helpers ----
-  function hideAllRealGraph() {
-    cy.elements().addClass("hidden");
-    cy.$("node[isHub]").removeClass("hidden");
-    cy.$("edge[isHubEdge]").removeClass("hidden"); // hub edges may exist later
-  }
-
+  // ---- VIEWS ----
   function homeView() {
-    // Show only the 3 hubs
+    // Hide everything
     cy.elements().addClass("hidden");
-    cy.$("node[isHub]").removeClass("hidden");
-    cy.$("edge").addClass("hidden");
 
-    const layout = cy.layout({
-      name: "grid",
-      animate: true,
-      animationDuration: 600,
-      fit: false,
-      padding: 60
-    });
-    layout.run();
+    // Show ONLY hubs (exactly 3)
+    cy.$('node[kind = "hub"]').removeClass("hidden");
+
+    // Hide ALL edges
+    cy.edges().addClass("hidden");
+
+    cy.layout({ name: "grid", animate: true, animationDuration: 600, fit: false, padding: 80 }).run();
 
     document.getElementById("details").innerHTML =
-      `<div class="muted">Home loaded. Single click = details. <b>Double click</b> a hub to reveal that category.</div>`;
+      `<div class="muted">Home loaded. You should see exactly <b>3</b> hubs. Double click one hub to reveal that category.</div>`;
   }
 
   function showAllGraph() {
     cy.elements().removeClass("hidden");
-    // Use dramatic layout but DO NOT fit/zoom out
     cy.layout({
       name: "cose-bilkent",
       animate: true,
@@ -260,39 +188,33 @@
   }
 
   function revealCategory(label) {
-    // Reveal nodes of that label + connect them to the hub with synthetic edges
     const hubId = label === "CircularValueChain" ? "HUB_CVC" :
-                  label === "Partner" ? "HUB_PARTNER" :
-                  "HUB_DELIV";
+                  label === "Partner" ? "HUB_PARTNER" : "HUB_DELIV";
 
-    // Keep everything hidden except hubs + this category
+    // Hide all, show hubs + this label's nodes
     cy.elements().addClass("hidden");
-    cy.$("node[isHub]").removeClass("hidden");
+    cy.$('node[kind = "hub"]').removeClass("hidden");
 
-    const groupNodes = cy.nodes().filter(n => n.data("label") === label && n.data("isHub") !== true);
+    const groupNodes = cy.nodes().filter(n => n.data("kind") === "real" && n.data("label") === label);
     groupNodes.removeClass("hidden");
 
-    // Create synthetic hub edges (only once)
+    // Synthetic hub edges (only once)
     const newEdges = [];
     groupNodes.forEach(n => {
       const eid = `HE_${hubId}_${n.id()}`;
       if (cy.getElementById(eid).empty()) {
-        newEdges.push({
-          group: "edges",
-          data: { id: eid, source: hubId, target: n.id(), label: "contains", isHubEdge: true }
-        });
+        newEdges.push({ group:"edges", data:{ id:eid, source:hubId, target:n.id(), label:"contains", kind:"hubEdge" }});
       } else {
         cy.getElementById(eid).removeClass("hidden");
       }
     });
     if (newEdges.length) cy.add(newEdges);
 
-    // Show only those synthetic edges
+    // Show only hub edges for this hub
     cy.edges().addClass("hidden");
-    cy.edges().filter(e => e.data("isHubEdge") === true && e.data("source") === hubId).removeClass("hidden");
+    cy.edges().filter(e => e.data("kind") === "hubEdge" && e.data("source") === hubId).removeClass("hidden");
 
-    // Layout around hub (dramatic but stable, no zoom-out)
-    const sub = cy.$(`node#${hubId}, node[label="${label}"], edge[isHubEdge][source="${hubId}"]`);
+    // Layout around hub without zooming out
     cy.layout({
       name: "concentric",
       animate: true,
@@ -304,26 +226,20 @@
     }).run();
 
     document.getElementById("details").innerHTML =
-      `<div class="muted"><b>${label}</b> category revealed.<br>Single click nodes for details. <b>Double click</b> a node to expand its real neighbors.</div>`;
+      `<div class="muted"><b>${label}</b> revealed. Single click nodes for details. Double click a node to expand its real neighbors.</div>`;
   }
 
   function expandRealNeighbors(node) {
-    // Expand only one hop in the REAL graph (original edges), without re-centering/zooming.
-    const nodeId = node.id();
-    // Reveal node itself (if hidden)
     node.removeClass("hidden");
 
-    // Reveal its real edges and neighbors
-    const realEdges = node.connectedEdges().filter(e => e.data("isHubEdge") !== true);
+    const realEdges = node.connectedEdges().filter(e => e.data("kind") !== "hubEdge");
     const neighbors = realEdges.connectedNodes();
 
     realEdges.removeClass("hidden");
     neighbors.removeClass("hidden");
 
-    // Keep hubs visible too
-    cy.$("node[isHub]").removeClass("hidden");
+    cy.$('node[kind = "hub"]').removeClass("hidden");
 
-    // Layout the visible subset but do not fit/zoom out
     cy.layout({
       name: "cose-bilkent",
       animate: true,
@@ -337,7 +253,7 @@
     }).run();
   }
 
-  // ---- Double click detection (Cytoscape doesn't provide it by default) ----
+  // ---- DOUBLE CLICK DETECTION ----
   let lastTapTime = 0;
   let lastTapId = null;
 
@@ -349,14 +265,12 @@
     lastTapId = id;
 
     if (!isDouble) {
-      // Single click: only details (no expansion, no zoom changes)
       showDetails(ele);
       return;
     }
 
-    // Double click: expand
     const d = ele.data();
-    if (d.isHub === true) {
+    if (d.kind === "hub") {
       revealCategory(d.label);
     } else {
       expandRealNeighbors(ele);
@@ -368,129 +282,94 @@
     const raw = await res.json();
     const elements = unwrapNeo4jBrowserJson(raw);
 
-    if (!elements || !elements.nodes || !elements.edges) {
+    if (!elements?.nodes || !elements?.edges) {
       document.getElementById("details").innerHTML =
-        "<b>Error</b><br><br>graph.json could not be loaded. Make sure graph.json is in the repo root.";
+        "<b>Error</b><br><br>graph.json could not be loaded. Make sure it is in the repo root.";
       return;
     }
 
-    // Build real nodes
-    const nodes = elements.nodes.map(n => {
+    // Real nodes
+    const realNodes = elements.nodes.map(n => {
       const d = n.data || {};
       const label = (d.labels && d.labels[0]) || "Other";
-      const title = nodeDisplayTitle(d);
       return {
         data: {
           ...d,
           label,
-          title,
+          title: nodeDisplayTitle(d),
           color: labelColor(label),
-          isHub: false
+          kind: "real"
         }
       };
     });
 
-    // Build real edges
-    const edges = elements.edges.map(e => {
+    // Real edges
+    const realEdges = elements.edges.map(e => {
       const d = e.data || {};
       return {
         data: {
           ...d,
           label: d.type || "REL",
-          isHubEdge: false
+          kind: "realEdge"
         }
       };
     });
 
-    // Add hub nodes
+    // Hub nodes
     const hubNodes = HUBS.map(h => ({
-      data: {
-        id: h.id,
-        label: h.label,
-        title: h.title,
-        color: COLORS.HUB,
-        isHub: true
-      }
+      data: { id: h.id, label: h.label, title: h.title, color: COLORS.HUB, kind: "hub" }
     }));
 
     cy = cytoscape({
       container: document.getElementById("cy"),
-      elements: { nodes: [...hubNodes, ...nodes], edges: edges },
+      elements: { nodes: [...hubNodes, ...realNodes], edges: realEdges },
       style: [
         { selector: ".hidden", style: { "display": "none" } },
 
-        // Nodes (glow / neon)
-        {
-          selector: "node",
-          style: {
-            "background-color": "data(color)",
-            "width": 18,
-            "height": 18,
-            "border-width": 2,
-            "border-color": "data(color)",
-            "label": "data(title)",
-            "color": "#E9ECFF",
-            "font-size": 11,
-            "text-wrap": "wrap",
-            "text-max-width": 140,
-            "text-outline-width": 3,
-            "text-outline-color": "#050711"
-          }
-        },
+        { selector: "node", style: {
+          "background-color": "data(color)",
+          "width": 18, "height": 18,
+          "border-width": 2,
+          "border-color": "data(color)",
+          "label": "data(title)",
+          "color": "#E9ECFF",
+          "font-size": 11,
+          "text-wrap": "wrap",
+          "text-max-width": 140,
+          "text-outline-width": 3,
+          "text-outline-color": "#050711"
+        }},
+        { selector: 'node[kind = "hub"]', style: {
+          "width": 80, "height": 80,
+          "border-width": 3,
+          "font-size": 16,
+          "text-max-width": 200
+        }},
 
-        // HUB nodes: big + bold
-        {
-          selector: "node[isHub]",
-          style: {
-            "width": 70,
-            "height": 70,
-            "border-width": 3,
-            "font-size": 16,
-            "text-max-width": 180
-          }
-        },
-
-        // Edges
-        {
-          selector: "edge",
-          style: {
-            "curve-style": "bezier",
-            "line-color": "rgba(180,200,255,0.22)",
-            "width": 2,
-            "target-arrow-shape": "triangle",
-            "target-arrow-color": "rgba(180,200,255,0.35)",
-            "arrow-scale": 1.05,
-            "label": "data(label)",
-            "font-size": 9,
-            "color": "rgba(233,236,255,0.60)",
-            "text-outline-width": 2,
-            "text-outline-color": "#050711"
-          }
-        },
-
-        // Hub edges a bit brighter
-        {
-          selector: 'edge[isHubEdge]',
-          style: {
-            "line-color": "rgba(233,236,255,0.28)",
-            "target-arrow-color": "rgba(233,236,255,0.35)",
-            "width": 2.5
-          }
-        }
+        { selector: "edge", style: {
+          "curve-style": "bezier",
+          "line-color": "rgba(180,200,255,0.22)",
+          "width": 2,
+          "target-arrow-shape": "triangle",
+          "target-arrow-color": "rgba(180,200,255,0.35)",
+          "label": "data(label)",
+          "font-size": 9,
+          "color": "rgba(233,236,255,0.55)",
+          "text-outline-width": 2,
+          "text-outline-color": "#050711"
+        }},
+        { selector: 'edge[kind = "hubEdge"]', style: {
+          "line-color": "rgba(233,236,255,0.28)",
+          "target-arrow-color": "rgba(233,236,255,0.35)",
+          "width": 2.5
+        }}
       ]
     });
 
-    // Start hidden: all real graph hidden, hubs visible
-    cy.elements().addClass("hidden");
-    cy.$("node[isHub]").removeClass("hidden");
-
-    // Important: hide all real edges at start
-    cy.edges().addClass("hidden");
-
-    // Single/double click handler
+    // click handler
     cy.on("tap", "node", (evt) => handleTap(evt.target));
 
-    // Search: reveal hit + details + (optional) keep view stable
+    // Search (single reveal + center, no zoom change)
     document.getElementById("search").addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       const q = e.target.value.trim().toLowerCase();
@@ -498,26 +377,21 @@
 
       const hit = cy.nodes().filter(n => {
         const d = n.data();
-        // Ignore hubs in search
-        if (d.isHub === true) return false;
+        if (d.kind !== "real") return false;
         return Object.values(d).some(v => String(v).toLowerCase().includes(q));
       }).first();
 
       if (hit && hit.length) {
-        // Reveal the node only (no expansion)
         hit.removeClass("hidden");
         showDetails(hit);
-
-        // Small gentle center without zoom changes
         cy.animate({ center: { eles: hit } }, { duration: 250 });
       }
     });
 
-    // Buttons
     document.getElementById("btnHome").onclick = () => homeView();
     document.getElementById("btnShowAll").onclick = () => showAllGraph();
 
-    // Home layout
+    // start
     homeView();
   }
 
