@@ -4,17 +4,17 @@
   <meta charset="utf-8" />
   <title>Graph Explorer</title>
 
-  <!-- Cytoscape core -->
+  <!-- Cytoscape -->
   <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
 
-  <!-- Force layout for dramatic motion -->
+  <!-- Layout engine (dramatic motion) -->
   <script src="https://unpkg.com/layout-base@2.0.1/layout-base.js"></script>
   <script src="https://unpkg.com/cose-base@2.2.0/cose-base.js"></script>
   <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
 
   <style>
-    html, body { width: 100%; height: 100%; margin: 0; font-family: Arial, sans-serif; background: #070A12; }
-    #app { display: flex; width: 100%; height: 100%; }
+    html, body { width:100%; height:100%; margin:0; font-family: Arial, sans-serif; background:#070A12; }
+    #app { display:flex; width:100%; height:100%; }
 
     #cy {
       flex: 1;
@@ -47,7 +47,7 @@
       align-items: center;
       backdrop-filter: blur(8px);
       color: #E9ECFF;
-      max-width: 820px;
+      max-width: 980px;
     }
 
     .btn {
@@ -64,7 +64,7 @@
     .btn:active { transform: translateY(0px); }
 
     #search {
-      width: 260px;
+      width: 280px;
       padding: 8px 10px;
       border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.18);
@@ -87,7 +87,7 @@
       color: #E9ECFF;
       font-size: 13px;
       backdrop-filter: blur(8px);
-      max-width: 360px;
+      max-width: 380px;
     }
     .lg-row { display:flex; align-items:center; gap:8px; margin: 6px 0; }
     .swatch { width: 12px; height: 12px; border-radius: 4px; box-shadow: 0 0 14px currentColor; }
@@ -108,10 +108,8 @@
     <div style="font-weight:700; letter-spacing:0.3px;">⚡ Graph Explorer</div>
     <div class="btn" id="btnHome">Home</div>
     <div class="btn" id="btnShowAll">Show all</div>
-    <div class="btn" id="btnFreeze">Freeze</div>
-    <div class="btn" id="btnUnfreeze">Unfreeze</div>
-    <input id="search" placeholder="Search any property, press Enter" />
-    <div class="muted">Hover = neon highlight • Click = expand</div>
+    <input id="search" placeholder="Search (any property), press Enter" />
+    <div class="muted">Single click = details • Double click = expand</div>
   </div>
 
   <div id="legend">
@@ -121,7 +119,7 @@
     <div class="lg-row"><div class="swatch" style="color:#9BFF3A; background:#9BFF3A;"></div> Deliverable</div>
     <div class="lg-row"><div class="swatch" style="color:#FFD34A; background:#FFD34A;"></div> Phase / Other</div>
     <div class="muted" style="margin-top:6px;">
-      Start view shows only the 3 anchor types (no edges). Click nodes to reveal neighbors.
+      Home shows 3 big hubs only. Double click a hub to reveal that category.
     </div>
   </div>
 
@@ -129,105 +127,84 @@
     <div id="cy"></div>
     <div id="side">
       <h3>Details</h3>
-      <div id="details" class="muted">Click a node to view all properties. Neighbors will expand.</div>
+      <div id="details" class="muted">Single click a node to view properties. Double click to expand.</div>
       <hr />
       <div class="muted">
-        Tip: If it gets too busy, press <b>Home</b> to reset to the clean landing view.
+        Tip: Use <b>Home</b> to return to the 3 hubs.
       </div>
     </div>
   </div>
 
 <script>
-  const LANDING_LABELS = new Set(["CircularValueChain", "Partner", "Deliverable"]);
-  const LABEL_COLORS = {
+  // ---- Styling palette ----
+  const COLORS = {
+    HUB: "#B8BFFF",
     CircularValueChain: "#00E5FF",
     Partner: "#FF2BD6",
     Deliverable: "#9BFF3A",
-    Phase: "#FFD34A",
-    Demonstration: "#FFD34A",
-    Innovation: "#FFD34A"
+    Other: "#FFD34A"
   };
 
+  // ---- Hub IDs (visual-only) ----
+  const HUBS = [
+    { id: "HUB_CVC", label: "CircularValueChain", title: "Circular Value Chains" },
+    { id: "HUB_PARTNER", label: "Partner", title: "Partners" },
+    { id: "HUB_DELIV", label: "Deliverable", title: "Deliverables" }
+  ];
+
+  let cy;
+
   function unwrapNeo4jBrowserJson(raw) {
-    // Neo4j Browser export usually: [ { "json": { "elements": { ... } } } ]
+    // Neo4j Browser export: [ { "json": { "elements": { nodes, edges } } } ]
     if (Array.isArray(raw) && raw[0] && raw[0].json && raw[0].json.elements) return raw[0].json.elements;
     if (raw && raw.elements) return raw.elements;
     return null;
   }
 
-  function pickTitle(d) {
-    return d.partners_legalname
-      || d.deliverables_name
-      || d.phase_id
-      || d.value_chains
-      || d.demonstrations
-      || d.id
-      || (d.labels && d.labels[0])
-      || "Node";
+  function nodeDisplayTitle(d) {
+    // Your requested labels:
+    // - Partner: abbreviation -> partners
+    // - Deliverable: deliverables_no
+    // - CircularValueChain: value_chains
+    const label = (d.labels && d.labels[0]) || "Other";
+    if (label === "Partner") return d.partners || d.partners_legalname || d.id;
+    if (label === "Deliverable") return d.deliverables_no || d.deliverables_name || d.id;
+    if (label === "CircularValueChain") return d.value_chains || d.id;
+
+    // fallback for others
+    return d.phase_id || d.demonstrations || d.id;
   }
 
-  let cy;
-
-  function landingLayout() {
-    // Clean, intentional layout for the first impression
-    cy.layout({
-      name: "concentric",
-      animate: true,
-      animationDuration: 600,
-      fit: true,
-      padding: 60,
-      concentric: (n) => {
-        const lab = n.data("label") || "";
-        if (lab === "CircularValueChain") return 100;
-        if (lab === "Partner") return 60;
-        if (lab === "Deliverable") return 40;
-        return 10;
-      },
-      levelWidth: () => 1
-    }).run();
-  }
-
-  function dramaticLayout() {
-    // Flashy “motion” layout for exploration
-    cy.layout({
-      name: "cose-bilkent",
-      animate: true,
-      animationDuration: 900,
-      fit: true,
-      padding: 40,
-      randomize: false,
-      nodeRepulsion: 12000,
-      idealEdgeLength: 120,
-      edgeElasticity: 0.25,
-      gravity: 0.2,
-      nestingFactor: 1.2
-    }).run();
-  }
-
-  function hideAll() {
-    cy.elements().addClass("hidden");
-  }
-
-  function showAnchorsOnly() {
-    // Show ONLY anchor nodes, NO edges, NO neighbors
-    hideAll();
-    cy.nodes().filter(n => LANDING_LABELS.has(n.data("label"))).removeClass("hidden");
-    landingLayout();
-    document.getElementById("details").innerHTML =
-      "<div class='muted'>Clean landing view loaded. Click a node to expand neighbors and view properties.</div>";
-  }
-
-  function showAllGraph() {
-    cy.elements().removeClass("hidden");
-    dramaticLayout();
+  function labelColor(label) {
+    if (label === "Partner") return COLORS.Partner;
+    if (label === "Deliverable") return COLORS.Deliverable;
+    if (label === "CircularValueChain") return COLORS.CircularValueChain;
+    return COLORS.Other;
   }
 
   function showDetails(ele) {
     const d = ele.data();
-    const label = d.label || (d.labels && d.labels[0]) || "Node";
+    const isHub = d.isHub === true;
+
+    const head = `
+      <div style="font-weight:700; font-size:16px; margin-bottom:6px;">${d.title || d.label || "Node"}</div>
+      <div class="muted">Type: <code>${d.label || "Node"}</code></div>
+      <hr />
+    `;
+
+    if (isHub) {
+      document.getElementById("details").innerHTML = head + `
+        <div class="muted">
+          This is a <b>category hub</b> (visual-only).
+          <br><br>
+          <b>Double click</b> to reveal nodes in this category.
+        </div>
+      `;
+      return;
+    }
 
     const rows = Object.entries(d)
-      .filter(([k]) => !["title"].includes(k))
+      .filter(([k]) => !["color", "title", "isHub"].includes(k))
       .sort((a,b) => a[0].localeCompare(b[0]))
       .map(([k,v]) => `
         <div class="kv">
@@ -236,42 +213,154 @@
         </div>
       `).join("");
 
-    document.getElementById("details").innerHTML = `
-      <div style="font-weight:700; font-size:16px; margin-bottom:6px;">${ele.data("title") || label}</div>
-      <div class="muted">Type: <code>${label}</code></div>
-      <hr />
-      ${rows || "<div class='muted'>No properties</div>"}
-    `;
+    document.getElementById("details").innerHTML = head + (rows || `<div class="muted">No properties</div>`);
   }
 
-  function expandOneHop(node) {
-    // Controlled expansion: only direct neighbors + connecting edges
-    const edges = node.connectedEdges();
-    const neighbors = edges.connectedNodes();
+  // ---- View helpers ----
+  function hideAllRealGraph() {
+    cy.elements().addClass("hidden");
+    cy.$("node[isHub]").removeClass("hidden");
+    cy.$("edge[isHubEdge]").removeClass("hidden"); // hub edges may exist later
+  }
+
+  function homeView() {
+    // Show only the 3 hubs
+    cy.elements().addClass("hidden");
+    cy.$("node[isHub]").removeClass("hidden");
+    cy.$("edge").addClass("hidden");
+
+    const layout = cy.layout({
+      name: "grid",
+      animate: true,
+      animationDuration: 600,
+      fit: false,
+      padding: 60
+    });
+    layout.run();
+
+    document.getElementById("details").innerHTML =
+      `<div class="muted">Home loaded. Single click = details. <b>Double click</b> a hub to reveal that category.</div>`;
+  }
+
+  function showAllGraph() {
+    cy.elements().removeClass("hidden");
+    // Use dramatic layout but DO NOT fit/zoom out
+    cy.layout({
+      name: "cose-bilkent",
+      animate: true,
+      animationDuration: 900,
+      fit: false,
+      padding: 40,
+      randomize: false,
+      nodeRepulsion: 14000,
+      idealEdgeLength: 120,
+      edgeElasticity: 0.25,
+      gravity: 0.15
+    }).run();
+  }
+
+  function revealCategory(label) {
+    // Reveal nodes of that label + connect them to the hub with synthetic edges
+    const hubId = label === "CircularValueChain" ? "HUB_CVC" :
+                  label === "Partner" ? "HUB_PARTNER" :
+                  "HUB_DELIV";
+
+    // Keep everything hidden except hubs + this category
+    cy.elements().addClass("hidden");
+    cy.$("node[isHub]").removeClass("hidden");
+
+    const groupNodes = cy.nodes().filter(n => n.data("label") === label && n.data("isHub") !== true);
+    groupNodes.removeClass("hidden");
+
+    // Create synthetic hub edges (only once)
+    const newEdges = [];
+    groupNodes.forEach(n => {
+      const eid = `HE_${hubId}_${n.id()}`;
+      if (cy.getElementById(eid).empty()) {
+        newEdges.push({
+          group: "edges",
+          data: { id: eid, source: hubId, target: n.id(), label: "contains", isHubEdge: true }
+        });
+      } else {
+        cy.getElementById(eid).removeClass("hidden");
+      }
+    });
+    if (newEdges.length) cy.add(newEdges);
+
+    // Show only those synthetic edges
+    cy.edges().addClass("hidden");
+    cy.edges().filter(e => e.data("isHubEdge") === true && e.data("source") === hubId).removeClass("hidden");
+
+    // Layout around hub (dramatic but stable, no zoom-out)
+    const sub = cy.$(`node#${hubId}, node[label="${label}"], edge[isHubEdge][source="${hubId}"]`);
+    cy.layout({
+      name: "concentric",
+      animate: true,
+      animationDuration: 700,
+      fit: false,
+      padding: 80,
+      concentric: (n) => n.id() === hubId ? 100 : 20,
+      levelWidth: () => 1
+    }).run();
+
+    document.getElementById("details").innerHTML =
+      `<div class="muted"><b>${label}</b> category revealed.<br>Single click nodes for details. <b>Double click</b> a node to expand its real neighbors.</div>`;
+  }
+
+  function expandRealNeighbors(node) {
+    // Expand only one hop in the REAL graph (original edges), without re-centering/zooming.
+    const nodeId = node.id();
+    // Reveal node itself (if hidden)
     node.removeClass("hidden");
-    edges.removeClass("hidden");
+
+    // Reveal its real edges and neighbors
+    const realEdges = node.connectedEdges().filter(e => e.data("isHubEdge") !== true);
+    const neighbors = realEdges.connectedNodes();
+
+    realEdges.removeClass("hidden");
     neighbors.removeClass("hidden");
-    dramaticLayout();
+
+    // Keep hubs visible too
+    cy.$("node[isHub]").removeClass("hidden");
+
+    // Layout the visible subset but do not fit/zoom out
+    cy.layout({
+      name: "cose-bilkent",
+      animate: true,
+      animationDuration: 650,
+      fit: false,
+      padding: 40,
+      randomize: false,
+      nodeRepulsion: 14000,
+      idealEdgeLength: 120,
+      gravity: 0.18
+    }).run();
   }
 
-  function dimAll(on) {
-    if (on) {
-      cy.elements().addClass("dim");
-    } else {
-      cy.elements().removeClass("dim");
+  // ---- Double click detection (Cytoscape doesn't provide it by default) ----
+  let lastTapTime = 0;
+  let lastTapId = null;
+
+  function handleTap(ele) {
+    const now = Date.now();
+    const id = ele.id();
+    const isDouble = (lastTapId === id && (now - lastTapTime) < 350);
+    lastTapTime = now;
+    lastTapId = id;
+
+    if (!isDouble) {
+      // Single click: only details (no expansion, no zoom changes)
+      showDetails(ele);
+      return;
     }
-  }
 
-  function highlightNeighborhood(node) {
-    dimAll(true);
-    const hood = node.closedNeighborhood();
-    hood.removeClass("dim");
-    hood.addClass("hi");
-  }
-
-  function clearHighlights() {
-    cy.elements().removeClass("hi");
-    dimAll(false);
+    // Double click: expand
+    const d = ele.data();
+    if (d.isHub === true) {
+      revealCategory(d.label);
+    } else {
+      expandRealNeighbors(ele);
+    }
   }
 
   async function main() {
@@ -281,47 +370,56 @@
 
     if (!elements || !elements.nodes || !elements.edges) {
       document.getElementById("details").innerHTML =
-        "<b>Could not load graph.json</b><br><br>Check that graph.json exists in the repo root.";
+        "<b>Error</b><br><br>graph.json could not be loaded. Make sure graph.json is in the repo root.";
       return;
     }
 
+    // Build real nodes
     const nodes = elements.nodes.map(n => {
       const d = n.data || {};
       const label = (d.labels && d.labels[0]) || "Other";
-      const color = LABEL_COLORS[label] || "#FFD34A";
-
+      const title = nodeDisplayTitle(d);
       return {
         data: {
           ...d,
           label,
-          color,
-          title: pickTitle(d)
+          title,
+          color: labelColor(label),
+          isHub: false
         }
       };
     });
 
+    // Build real edges
     const edges = elements.edges.map(e => {
       const d = e.data || {};
       return {
         data: {
           ...d,
-          label: d.type || "REL"
+          label: d.type || "REL",
+          isHubEdge: false
         }
       };
     });
 
+    // Add hub nodes
+    const hubNodes = HUBS.map(h => ({
+      data: {
+        id: h.id,
+        label: h.label,
+        title: h.title,
+        color: COLORS.HUB,
+        isHub: true
+      }
+    }));
+
     cy = cytoscape({
       container: document.getElementById("cy"),
-      elements: { nodes, edges },
+      elements: { nodes: [...hubNodes, ...nodes], edges: edges },
       style: [
-        // Hidden
         { selector: ".hidden", style: { "display": "none" } },
 
-        // Dim & highlight classes
-        { selector: ".dim", style: { "opacity": 0.12 } },
-        { selector: ".hi", style: { "opacity": 1 } },
-
-        // Nodes
+        // Nodes (glow / neon)
         {
           selector: "node",
           style: {
@@ -339,18 +437,17 @@
             "text-outline-color": "#050711"
           }
         },
-        // Make anchor nodes bigger
+
+        // HUB nodes: big + bold
         {
-          selector: 'node[label = "CircularValueChain"]',
-          style: { "width": 36, "height": 36, "border-width": 3, "font-size": 12 }
-        },
-        {
-          selector: 'node[label = "Partner"]',
-          style: { "width": 26, "height": 26, "border-width": 2 }
-        },
-        {
-          selector: 'node[label = "Deliverable"]',
-          style: { "width": 24, "height": 24, "border-width": 2 }
+          selector: "node[isHub]",
+          style: {
+            "width": 70,
+            "height": 70,
+            "border-width": 3,
+            "font-size": 16,
+            "text-max-width": 180
+          }
         },
 
         // Edges
@@ -358,40 +455,42 @@
           selector: "edge",
           style: {
             "curve-style": "bezier",
-            "line-color": "rgba(180,200,255,0.28)",
+            "line-color": "rgba(180,200,255,0.22)",
             "width": 2,
             "target-arrow-shape": "triangle",
-            "target-arrow-color": "rgba(180,200,255,0.45)",
-            "arrow-scale": 1.1,
+            "target-arrow-color": "rgba(180,200,255,0.35)",
+            "arrow-scale": 1.05,
             "label": "data(label)",
             "font-size": 9,
-            "color": "rgba(233,236,255,0.65)",
+            "color": "rgba(233,236,255,0.60)",
             "text-outline-width": 2,
             "text-outline-color": "#050711"
+          }
+        },
+
+        // Hub edges a bit brighter
+        {
+          selector: 'edge[isHubEdge]',
+          style: {
+            "line-color": "rgba(233,236,255,0.28)",
+            "target-arrow-color": "rgba(233,236,255,0.35)",
+            "width": 2.5
           }
         }
       ]
     });
 
-    // Hover highlight
-    cy.on("mouseover", "node", (evt) => highlightNeighborhood(evt.target));
-    cy.on("mouseout", "node", () => clearHighlights());
+    // Start hidden: all real graph hidden, hubs visible
+    cy.elements().addClass("hidden");
+    cy.$("node[isHub]").removeClass("hidden");
 
-    // Click expand + details
-    cy.on("tap", "node", (evt) => {
-      const n = evt.target;
-      showDetails(n);
-      expandOneHop(n);
-    });
+    // Important: hide all real edges at start
+    cy.edges().addClass("hidden");
 
-    // Buttons
-    document.getElementById("btnHome").onclick = () => showAnchorsOnly();
-    document.getElementById("btnShowAll").onclick = () => showAllGraph();
+    // Single/double click handler
+    cy.on("tap", "node", (evt) => handleTap(evt.target));
 
-    document.getElementById("btnFreeze").onclick = () => cy.nodes().lock();
-    document.getElementById("btnUnfreeze").onclick = () => cy.nodes().unlock();
-
-    // Search (any property)
+    // Search: reveal hit + details + (optional) keep view stable
     document.getElementById("search").addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       const q = e.target.value.trim().toLowerCase();
@@ -399,29 +498,32 @@
 
       const hit = cy.nodes().filter(n => {
         const d = n.data();
+        // Ignore hubs in search
+        if (d.isHub === true) return false;
         return Object.values(d).some(v => String(v).toLowerCase().includes(q));
       }).first();
 
       if (hit && hit.length) {
-        // Reveal node and neighbors so user can see it
+        // Reveal the node only (no expansion)
         hit.removeClass("hidden");
-        expandOneHop(hit);
         showDetails(hit);
 
-        cy.animate({ center: { eles: hit }, zoom: 1.2 }, { duration: 250 });
-        highlightNeighborhood(hit);
-        setTimeout(() => clearHighlights(), 900);
+        // Small gentle center without zoom changes
+        cy.animate({ center: { eles: hit } }, { duration: 250 });
       }
     });
 
-    // Start view: anchors only, no expansion
-    showAnchorsOnly();
+    // Buttons
+    document.getElementById("btnHome").onclick = () => homeView();
+    document.getElementById("btnShowAll").onclick = () => showAllGraph();
+
+    // Home layout
+    homeView();
   }
 
   main().catch(err => {
     console.error(err);
-    document.getElementById("details").innerHTML =
-      "<b>Error</b><br><br>" + String(err);
+    document.getElementById("details").innerHTML = "<b>Error</b><br><br>" + String(err);
   });
 </script>
 </body>
