@@ -1,379 +1,314 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="utf-8"/>
+<meta charset="utf-8">
 <title>Graph Explorer</title>
 
 <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
 
 <style>
-html,body{margin:0;height:100%;background:#070b18;font-family:Arial,Helvetica,sans-serif;}
-#topbar{
-  position:fixed;top:12px;left:12px;right:12px;height:56px;display:flex;align-items:center;gap:10px;
-  background:rgba(10,15,35,.85);backdrop-filter:blur(10px);border-radius:14px;padding:10px 14px;
-  box-shadow:0 0 30px rgba(0,0,0,.7);z-index:10;color:#fff;
-}
-.btn{background:#141b3c;border:1px solid #2a3380;color:#fff;padding:7px 14px;border-radius:12px;cursor:pointer;}
-.btn:hover{background:#1c255c;}
-#search{flex:1;background:#0f1433;border:1px solid #2a3380;border-radius:12px;padding:8px 12px;color:#fff;}
-#app{display:flex;height:100%;}
-#cy{flex:1;}
-#side{width:360px;padding:12px;background:#090f25;color:#eee;border-left:1px solid #1b2350;overflow:auto;}
-.small{color:#aaa;font-size:12px;}
-.k{color:#7fa3ff;font-size:12px;margin-top:10px;}
-.v{margin-bottom:8px;word-break:break-word;}
-.legend{position:fixed;bottom:12px;left:12px;background:rgba(10,15,35,.9);padding:10px 14px;border-radius:12px;color:#ddd;font-size:13px;}
-.legend div{margin:4px 0;}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;}
+html,body{margin:0;height:100%;background:#070b18;font-family:Arial}
+#topbar{position:fixed;top:12px;left:12px;right:12px;height:54px;display:flex;gap:10px;align-items:center;
+background:rgba(10,15,35,.85);backdrop-filter:blur(8px);border-radius:14px;padding:8px 14px;color:#fff;z-index:10}
+.btn{background:#141b3c;border:1px solid #2a3380;color:#fff;padding:6px 14px;border-radius:12px;cursor:pointer}
+.btn:hover{background:#1c255c}
+#search{flex:1;background:#0f1433;border:1px solid #2a3380;border-radius:12px;padding:7px 12px;color:#fff}
+#app{display:flex;height:100%}
+#cy{flex:1}
+#side{width:320px;background:#090f25;color:#eee;border-left:1px solid #1b2350;padding:12px;overflow:auto}
+.small{font-size:12px;color:#aaa}
+.k{color:#7fa3ff;font-size:12px;margin-top:8px}
+.v{margin-bottom:8px;word-break:break-word}
+.legend{position:fixed;bottom:12px;left:12px;background:rgba(10,15,35,.9);padding:10px 14px;border-radius:12px;color:#ddd;font-size:13px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
 </style>
 </head>
 
 <body>
+
 <div id="topbar">
-  ⚡ <b>Graph Explorer</b>
-  <button class="btn" id="btnHome">Home</button>
-  <button class="btn" id="btnShowAll">Show all</button>
-  <input id="search" placeholder="Search (any property) and press Enter">
-  <span class="small">Hover = focus • Click = details • Double click = expand</span>
+⚡ <b>Graph Explorer</b>
+<button class="btn" id="btnHome">Home</button>
+<button class="btn" id="btnShowAll">Show all</button>
+<input id="search" placeholder="Search and press Enter">
+<span class="small">Hover = focus • Click = details • Double click = expand</span>
 </div>
 
 <div id="app">
-  <div id="cy"></div>
-  <div id="side">
-    <h3>Details</h3>
-    <div id="details" class="small">Loading graph…</div>
-  </div>
+<div id="cy"></div>
+<div id="side">
+<h3>Details</h3>
+<div id="details" class="small">Home loaded. Double click a hub to explore.</div>
+</div>
 </div>
 
 <div class="legend">
-  <div><span class="dot" style="background:#00E5FF"></span> CircularValueChain</div>
-  <div><span class="dot" style="background:#FF2BD6"></span> Partner</div>
-  <div><span class="dot" style="background:#9BFF3A"></span> Deliverable</div>
-  <div><span class="dot" style="background:#FFD34A"></span> Demonstration</div>
-  <div><span class="dot" style="background:#FF7A00"></span> Innovation</div>
+<div><span class="dot" style="background:#00E5FF"></span> CircularValueChain</div>
+<div><span class="dot" style="background:#FF2BD6"></span> Partner</div>
+<div><span class="dot" style="background:#9BFF3A"></span> Deliverable</div>
+<div><span class="dot" style="background:#FFD34A"></span> Demonstration</div>
+<div><span class="dot" style="background:#FF7A00"></span> Innovation</div>
 </div>
 
 <script>
-const COLORS = {
-  hub:"#B8BFFF",
-  CircularValueChain:"#00E5FF",
-  Partner:"#FF2BD6",
-  Deliverable:"#9BFF3A",
-  Demonstration:"#FFD34A",
-  Innovation:"#FF7A00",
-  Other:"#8892ff"
+
+const COLORS={
+hub:"#B8BFFF",
+CircularValueChain:"#00E5FF",
+Partner:"#FF2BD6",
+Deliverable:"#9BFF3A",
+Demonstration:"#FFD34A",
+Innovation:"#FF7A00",
+Other:"#8892ff"
 };
 
-const HUBS = [
- {id:"HUB_CVC",label:"CircularValueChain",title:"Circular Value Chains"},
- {id:"HUB_PARTNER",label:"Partner",title:"Partners"},
- {id:"HUB_DELIV",label:"Deliverable",title:"Deliverables"},
- {id:"HUB_DEMO",label:"Demonstration",title:"Demonstrations"},
- {id:"HUB_INNO",label:"Innovation",title:"Innovations"}
+const HUBS=[
+{id:"HUB_CVC",label:"CircularValueChain",title:"Circular Value Chains"},
+{id:"HUB_PARTNER",label:"Partner",title:"Partners"},
+{id:"HUB_DELIV",label:"Deliverable",title:"Deliverables"},
+{id:"HUB_DEMO",label:"Demonstration",title:"Demonstrations"},
+{id:"HUB_INNO",label:"Innovation",title:"Innovations"}
 ];
 
 let cy;
 
-function asNiceText(v){
-  if(v===undefined||v===null) return "";
-  if(Array.isArray(v)) return v.filter(Boolean).join(" • ");
-  if(typeof v === "object") return JSON.stringify(v);
-  return String(v);
+function text(v){
+ if(v==null) return "";
+ if(Array.isArray(v)) return v.join(" • ");
+ return String(v);
 }
 
-function pickNodeLabel(d){
-  const label=(d.labels && d.labels[0]) || "Other";
+// ===== LABEL FIXES =====
+function nodeTitle(d){
+ const label=(d.labels && d.labels[0])||"Other";
 
-  if(label==="Partner") return asNiceText(d.partners) || asNiceText(d.partners_legalname) || d.id;
-  if(label==="Deliverable") return asNiceText(d.deliverables_no) || asNiceText(d.deliverables_name) || d.id;
+ if(label==="Partner") return text(d.partners)||text(d.partners_legalname)||d.id;
+ if(label==="Deliverable") return text(d.deliverables_no)||text(d.deliverables_name)||d.id;
 
-  if((label||"").toLowerCase().includes("circularvaluechain"))
-    return asNiceText(d.valuechain_name) || asNiceText(d.value_chains) || d.id;
+ if(label.toLowerCase().includes("circularvaluechain"))
+  return text(d.valuechain_name)||text(d.value_chains)||d.id;
 
-  if(label==="Demonstration") return asNiceText(d.demonstrations) || asNiceText(d.demonstrations_type) || d.id;
-  if(label==="Innovation") return asNiceText(d.innovations_name) || d.id;
+ if(label==="Demonstration") return text(d.demonstrations)||text(d.demonstrations_type)||d.id;
 
-  return asNiceText(d.phase_id) || d.id;
+ if(label==="Innovation") return text(d.innovations_name)||d.id;
+
+ return text(d.phase_id)||d.id;
 }
 
+// ===== HUB ROUTER =====
 function hubIdFor(label){
-  const L=(label||"").toLowerCase();
-  if(L.includes("circularvaluechain")) return "HUB_CVC";
-  if(L==="partner") return "HUB_PARTNER";
-  if(L==="deliverable") return "HUB_DELIV";
-  if(L==="demonstration") return "HUB_DEMO";
-  if(L==="innovation") return "HUB_INNO";
-  return null;
+ const L=label.toLowerCase();
+ if(L.includes("circularvaluechain")) return "HUB_CVC";
+ if(L==="partner") return "HUB_PARTNER";
+ if(L==="deliverable") return "HUB_DELIV";
+ if(L==="demonstration") return "HUB_DEMO";
+ if(L==="innovation") return "HUB_INNO";
+ return null;
 }
 
-function unwrapElements(raw){
-  // Supports: [ { json: { elements: ... } } ]  OR  { elements: ... }
-  if(Array.isArray(raw) && raw[0] && raw[0].json && raw[0].json.elements) return raw[0].json.elements;
-  if(raw && raw.elements) return raw.elements;
-  return null;
-}
+// ===== LOAD GRAPH =====
+fetch("graph.json").then(r=>r.json()).then(raw=>{
 
-function showError(msg, err){
-  console.error(msg, err);
-  document.getElementById("details").innerHTML =
-    `<div style="color:#ffb6b6"><b>Error:</b> ${msg}</div>
-     <div class="small" style="margin-top:8px">Open DevTools (F12) → Console for details.</div>`;
-}
+const elements=raw[0].json.elements;
+const nodes=[];
+const edges=[];
 
-function initGraph(elements){
-  // Edges can be in elements.edges OR elements.relationships
-  const nodesArr = elements.nodes || [];
-  const edgesArr = elements.edges || elements.relationships || [];
-
-  if(!nodesArr.length){
-    showError("No nodes found in graph.json (elements.nodes is empty).");
-    return;
+// real nodes
+elements.nodes.forEach(n=>{
+ const d=n.data;
+ const label=d.labels[0];
+ nodes.push({
+  data:{
+   id:d.id,
+   label,
+   name:nodeTitle(d),
+   raw:d,
+   kind:"real"
   }
+ });
+});
 
-  const cyNodes = nodesArr.map(n=>{
-    const d = n.data || {};
-    const label = (d.labels && d.labels[0]) || "Other";
-    return {
-      data:{
-        id: d.id,
-        label,
-        name: pickNodeLabel(d),
-        raw: d,
-        kind:"real"
-      }
-    };
-  });
+// real edges
+elements.relationships.forEach(r=>{
+ edges.push({
+  data:{
+   id:r.data.id,
+   source:r.data.startNode,
+   target:r.data.endNode,
+   kind:"real"
+  }
+ });
+});
 
-  const cyEdges = edgesArr.map(e=>{
-    const d = e.data || {};
-    return {
-      data:{
-        id: d.id,
-        source: d.source || d.startNode,
-        target: d.target || d.endNode,
-        kind:"realEdge",
-        rel: d.type || d.label || ""
-      }
-    };
-  });
+// hub nodes
+HUBS.forEach(h=>{
+ nodes.push({
+  data:{
+   id:h.id,
+   label:h.label,
+   name:h.title,
+   kind:"hub"
+  }
+ });
+});
 
-  const hubNodes = HUBS.map(h=>({
-    data:{ id:h.id, name:h.title, label:h.label, kind:"hub" }
-  }));
+cy=cytoscape({
+ container:document.getElementById("cy"),
+ elements:{nodes,edges},
+ layout:{name:"preset"},
+ style:[
+ {
+  selector:"node",
+  style:{
+   "background-color":e=>COLORS[e.data("label")]||COLORS.Other,
+   "label":"data(name)",
+   "color":"#fff",
+   "text-outline-color":"#000",
+   "text-outline-width":2,
+   "font-size":"11px",
+   "width":26,
+   "height":26
+  }
+ },
+ {
+  selector:'node[kind="hub"]',
+  style:{
+   "width":85,"height":85,
+   "font-size":"16px",
+   "background-color":COLORS.hub,
+   "font-weight":"bold"
+  }
+ },
+ {
+  selector:"edge",
+  style:{
+   "line-color":"rgba(220,230,255,.4)",
+   "target-arrow-color":"rgba(220,230,255,.5)",
+   "target-arrow-shape":"triangle",
+   "width":1.8,
+   "curve-style":"bezier"
+  }
+ },
+ {selector:".hidden",style:{display:"none"}},
+ {selector:".fade",style:{opacity:0.07}}
+ ]
+});
 
-  cy = cytoscape({
-    container: document.getElementById("cy"),
-    elements: { nodes:[...hubNodes, ...cyNodes], edges: cyEdges },
-    layout: { name:"preset" },
-    style: [
-      {
-        selector:"node",
-        style:{
-          "background-color": ele => COLORS[ele.data("label")] || COLORS.Other,
-          "label":"data(name)",
-          "color":"#fff",
-          "font-size":"11px",
-          "text-outline-color":"#000",
-          "text-outline-width":2,
-          "width":26,
-          "height":26
-        }
-      },
-      {
-        selector:'node[kind="hub"]',
-        style:{
-          "width":85,"height":85,"font-size":"16px",
-          "background-color": COLORS.hub,
-          "font-weight":"bold"
-        }
-      },
-      {
-        selector:"edge",
-        style:{
-          "line-color":"rgba(220,230,255,0.35)",
-          "target-arrow-color":"rgba(220,230,255,0.45)",
-          "target-arrow-shape":"triangle",
-          "width":1.7,
-          "curve-style":"bezier"
-        }
-      },
-      { selector:".hidden", style:{ "display":"none" } },
-      { selector:".faded", style:{ "opacity":0.06 } }
-    ],
-    wheelSensitivity: 0.15
-  });
+setup();
+homeView();
 
-  setupUI();
-  homeView();
+// ===== UI =====
+function setup(){
+
+// hover focus
+cy.on("mouseover","node",e=>{
+ cy.elements().addClass("fade");
+ e.target.closedNeighborhood().removeClass("fade");
+});
+cy.on("mouseout","node",()=>cy.elements().removeClass("fade"));
+
+// click details
+cy.on("tap","node",e=>{
+ const n=e.target;
+ if(n.data("kind")==="hub") return;
+
+ let html="<b>"+n.data("name")+"</b><hr>";
+ Object.entries(n.data("raw")).forEach(([k,v])=>{
+  html+=`<div class="k">${k}</div><div class="v">${text(v)}</div>`;
+ });
+ document.getElementById("details").innerHTML=html;
+});
+
+// double click expand
+let last=0,id=null;
+cy.on("tap","node",e=>{
+ const now=Date.now();
+ if(now-last<300 && id===e.target.id()){
+  const n=e.target;
+  if(n.data("kind")==="hub") openCategory(n.data("label"));
+  else expandNode(n);
+ }
+ last=now; id=e.target.id();
+});
+
+// buttons
+btnHome.onclick=homeView;
+btnShowAll.onclick=()=>{
+ cy.elements().removeClass("hidden");
+ cy.layout({name:"cose",animate:true,fit:false,gravity:0.9}).run();
+};
+
 }
 
+// ===== HOME VIEW =====
 function homeView(){
-  cy.elements().addClass("hidden");
-  cy.nodes('[kind="hub"]').removeClass("hidden");
-  cy.edges().addClass("hidden");
 
-  const w=cy.width(), h=cy.height();
+cy.elements().addClass("hidden");
+cy.nodes('[kind="hub"]').removeClass("hidden");
+cy.edges().addClass("hidden");
 
-  cy.getElementById("HUB_CVC").position({x:w*0.45,y:h*0.55});
-  cy.getElementById("HUB_PARTNER").position({x:w*0.28,y:h*0.35});
-  cy.getElementById("HUB_DELIV").position({x:w*0.72,y:h*0.55});
-  cy.getElementById("HUB_DEMO").position({x:w*0.55,y:h*0.30});
-  cy.getElementById("HUB_INNO").position({x:w*0.55,y:h*0.75});
+const w=cy.width(),h=cy.height();
 
-  cy.zoom(1);
-  cy.center(cy.nodes('[kind="hub"]'));
+cy.getElementById("HUB_CVC").position({x:w*0.45,y:h*0.55});
+cy.getElementById("HUB_PARTNER").position({x:w*0.28,y:h*0.35});
+cy.getElementById("HUB_DELIV").position({x:w*0.72,y:h*0.55});
+cy.getElementById("HUB_DEMO").position({x:w*0.55,y:h*0.30});
+cy.getElementById("HUB_INNO").position({x:w*0.55,y:h*0.75});
 
-  document.getElementById("details").innerHTML =
-    `<div class="small">Home loaded: 5 hubs. Double click a hub to reveal that category.</div>`;
+cy.center(cy.nodes('[kind="hub"]'));
+cy.zoom(1);
+
 }
 
-function showAll(){
-  cy.elements().removeClass("hidden");
-  // A gentle layout without crazy zoom
-  cy.layout({ name:"cose", animate:true, gravity:0.9, fit:false }).run();
-  document.getElementById("details").innerHTML =
-    `<div class="small">All nodes shown. Hover any node to focus its neighborhood.</div>`;
+// ===== OPEN CATEGORY =====
+function openCategory(label){
+
+const hubId=hubIdFor(label);
+if(!hubId) return;
+
+cy.elements().addClass("hidden");
+cy.nodes('[kind="hub"]').removeClass("hidden");
+
+const hub=cy.getElementById(hubId);
+const center=hub.position();
+
+const group=cy.nodes().filter(n=>n.data("kind")==="real" && n.data("label")===label);
+group.removeClass("hidden");
+
+// draw hub arrows
+const newEdges=[];
+group.forEach(n=>{
+ const eid="H_"+hubId+"_"+n.id();
+ if(cy.getElementById(eid).empty()){
+  newEdges.push({data:{id:eid,source:hubId,target:n.id(),kind:"hubEdge"}});
+ }
+});
+if(newEdges.length) cy.add(newEdges);
+
+cy.edges().addClass("hidden");
+cy.edges().filter(e=>e.data("kind")==="hubEdge" && e.data("source")===hubId).removeClass("hidden");
+
+// compact circle layout
+const radius=220;
+group.toArray().forEach((n,i)=>{
+ const a=(-Math.PI/2)+(2*Math.PI*i)/group.length;
+ n.position({x:center.x+radius*Math.cos(a),y:center.y+radius*Math.sin(a)});
+});
+
+cy.center(hub);
+
 }
 
-function revealCategory(label){
-  const hubId = hubIdFor(label);
-  if(!hubId) return;
-
-  cy.elements().addClass("hidden");
-  cy.nodes('[kind="hub"]').removeClass("hidden");
-
-  const hub = cy.getElementById(hubId);
-  const center = hub.position();
-
-  const group = cy.nodes().filter(n => n.data("kind")==="real" && n.data("label")===label);
-  group.removeClass("hidden");
-
-  // Hide real edges for a clean category view (less mess)
-  cy.edges().addClass("hidden");
-
-  // Put nodes in a compact ring around the hub
-  const radius = 240;
-  const nodes = group.toArray();
-  nodes.forEach((n,i)=>{
-    const a = (-Math.PI/2) + (2*Math.PI*i)/Math.max(nodes.length,1);
-    n.position({ x: center.x + radius*Math.cos(a), y: center.y + radius*Math.sin(a) });
-  });
-
-  cy.animate({ center: { eles: hub } }, { duration: 200 });
-
-  document.getElementById("details").innerHTML =
-    `<div class="small"><b>${label}</b> opened. Click a node for details. Double click a node to expand neighbors.</div>`;
+// ===== EXPAND NODE =====
+function expandNode(n){
+ const neigh=n.closedNeighborhood();
+ cy.elements().addClass("hidden");
+ neigh.removeClass("hidden");
+ cy.center(n);
 }
 
-function showDetails(n){
-  if(n.data("kind")==="hub"){
-    document.getElementById("details").innerHTML =
-      `<div class="small"><b>${n.data("name")}</b><br>Double click to open this category.</div>`;
-    return;
-  }
+});
 
-  const d = n.data("raw") || {};
-  let html = `<div style="font-size:16px;font-weight:700;margin-bottom:8px">${n.data("name")}</div>`;
-  html += `<div class="small">Type: <b>${n.data("label")}</b></div><hr/>`;
-
-  Object.entries(d).forEach(([k,v])=>{
-    html += `<div class="k">${k}</div><div class="v">${asNiceText(v)}</div>`;
-  });
-
-  document.getElementById("details").innerHTML = html;
-}
-
-function expandLocal(n){
-  // reveal n + its 1-hop neighborhood
-  const neigh = n.closedNeighborhood();
-
-  cy.elements().addClass("hidden");
-  neigh.removeClass("hidden");
-
-  // keep camera stable
-  cy.animate({ center: { eles: n } }, { duration: 180 });
-
-  document.getElementById("details").innerHTML +=
-    `<div class="small" style="margin-top:10px;color:#9fb3ff">Expanded 1-hop neighborhood.</div>`;
-}
-
-function setupUI(){
-  document.getElementById("btnHome").onclick = homeView;
-  document.getElementById("btnShowAll").onclick = showAll;
-
-  // hover focus
-  cy.on("mouseover","node",evt=>{
-    const n = evt.target;
-    cy.elements().addClass("faded");
-    n.closedNeighborhood().removeClass("faded");
-  });
-  cy.on("mouseout","node",()=>{
-    cy.elements().removeClass("faded");
-  });
-
-  // click = details
-  cy.on("tap","node",evt=>{
-    showDetails(evt.target);
-  });
-
-  // double click detection
-  let lastTapTime = 0;
-  let lastTapId = null;
-
-  cy.on("tap","node",evt=>{
-    const now = Date.now();
-    const id = evt.target.id();
-    const isDouble = (lastTapId===id && (now-lastTapTime)<330);
-    lastTapTime = now;
-    lastTapId = id;
-    if(!isDouble) return;
-
-    const n = evt.target;
-    if(n.data("kind")==="hub"){
-      revealCategory(n.data("label"));
-    } else {
-      expandLocal(n);
-    }
-  });
-
-  // search
-  document.getElementById("search").addEventListener("keydown",e=>{
-    if(e.key!=="Enter") return;
-    const q = e.target.value.trim().toLowerCase();
-    if(!q) return;
-
-    const hits = cy.nodes().filter(n=>{
-      if(n.data("kind")!=="real") return false;
-      const raw = n.data("raw") || {};
-      return Object.values(raw).some(v => asNiceText(v).toLowerCase().includes(q));
-    });
-
-    cy.elements().addClass("hidden");
-    cy.nodes('[kind="hub"]').removeClass("hidden");
-    hits.removeClass("hidden");
-    cy.animate({ center: { eles: hits } }, { duration: 180 });
-
-    document.getElementById("details").innerHTML =
-      `<div class="small">Search results: <b>${hits.length}</b> nodes shown. Press Home to reset.</div>`;
-  });
-}
-
-// MAIN
-(async function(){
-  try{
-    const res = await fetch("./graph.json");
-    if(!res.ok) throw new Error("graph.json not found (check file name + location).");
-    const raw = await res.json();
-
-    const elements = unwrapElements(raw);
-    if(!elements) throw new Error("Could not find elements in graph.json. (Unexpected JSON format)");
-
-    initGraph(elements);
-  } catch(err){
-    showError(err.message, err);
-  }
-})();
 </script>
-
 </body>
 </html>
