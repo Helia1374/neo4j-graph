@@ -47,7 +47,7 @@
       align-items: center;
       backdrop-filter: blur(8px);
       color: #E9ECFF;
-      max-width: 980px;
+      max-width: 820px;
     }
 
     .btn {
@@ -121,7 +121,7 @@
     <div class="lg-row"><div class="swatch" style="color:#9BFF3A; background:#9BFF3A;"></div> Deliverable</div>
     <div class="lg-row"><div class="swatch" style="color:#FFD34A; background:#FFD34A;"></div> Phase / Other</div>
     <div class="muted" style="margin-top:6px;">
-      Start view shows only CircularValueChain + Partner + Deliverable.
+      Start view shows only the 3 anchor types (no edges). Click nodes to reveal neighbors.
     </div>
   </div>
 
@@ -129,15 +129,16 @@
     <div id="cy"></div>
     <div id="side">
       <h3>Details</h3>
-      <div id="details" class="muted">Click a node to view properties and expand neighbors.</div>
+      <div id="details" class="muted">Click a node to view all properties. Neighbors will expand.</div>
       <hr />
-      <div class="muted">Tip: If it gets too busy, press <b>Home</b>.</div>
+      <div class="muted">
+        Tip: If it gets too busy, press <b>Home</b> to reset to the clean landing view.
+      </div>
     </div>
   </div>
 
 <script>
   const LANDING_LABELS = new Set(["CircularValueChain", "Partner", "Deliverable"]);
-
   const LABEL_COLORS = {
     CircularValueChain: "#00E5FF",
     Partner: "#FF2BD6",
@@ -147,44 +148,33 @@
     Innovation: "#FFD34A"
   };
 
-  let cy;
-
   function unwrapNeo4jBrowserJson(raw) {
+    // Neo4j Browser export usually: [ { "json": { "elements": { ... } } } ]
     if (Array.isArray(raw) && raw[0] && raw[0].json && raw[0].json.elements) return raw[0].json.elements;
     if (raw && raw.elements) return raw.elements;
     return null;
   }
 
-  // ✅ Your requested label logic:
-  function displayTitleForNode(d) {
-    const label = (d.labels && d.labels[0]) || "Other";
-
-    if (label === "Partner") {
-      // abbreviation
-      return d.partners || d.partners_legalname || d.id;
-    }
-
-    if (label === "Deliverable") {
-      // deliverable number
-      return d.deliverables_no || d.deliverables_name || d.id;
-    }
-
-    if (label === "CircularValueChain") {
-      // real name like "Timber value chain"
-      return d.value_chains || d.id;
-    }
-
-    // fallback for other types
-    return d.phase_id || d.demonstrations || d.id;
+  function pickTitle(d) {
+    return d.partners_legalname
+      || d.deliverables_name
+      || d.phase_id
+      || d.value_chains
+      || d.demonstrations
+      || d.id
+      || (d.labels && d.labels[0])
+      || "Node";
   }
 
-  function makeLandingLayout() {
-    // Clean landing layout, without zoom/fit jumps
+  let cy;
+
+  function landingLayout() {
+    // Clean, intentional layout for the first impression
     cy.layout({
       name: "concentric",
       animate: true,
-      animationDuration: 700,
-      fit: false,
+      animationDuration: 600,
+      fit: true,
       padding: 60,
       concentric: (n) => {
         const lab = n.data("label") || "";
@@ -197,19 +187,39 @@
     }).run();
   }
 
-  function makeDramaticLayout() {
+  function dramaticLayout() {
+    // Flashy “motion” layout for exploration
     cy.layout({
       name: "cose-bilkent",
       animate: true,
-      animationDuration: 850,
-      fit: false,          // ✅ prevents zooming out / losing your place
+      animationDuration: 900,
+      fit: true,
       padding: 40,
       randomize: false,
       nodeRepulsion: 12000,
       idealEdgeLength: 120,
       edgeElasticity: 0.25,
-      gravity: 0.18
+      gravity: 0.2,
+      nestingFactor: 1.2
     }).run();
+  }
+
+  function hideAll() {
+    cy.elements().addClass("hidden");
+  }
+
+  function showAnchorsOnly() {
+    // Show ONLY anchor nodes, NO edges, NO neighbors
+    hideAll();
+    cy.nodes().filter(n => LANDING_LABELS.has(n.data("label"))).removeClass("hidden");
+    landingLayout();
+    document.getElementById("details").innerHTML =
+      "<div class='muted'>Clean landing view loaded. Click a node to expand neighbors and view properties.</div>";
+  }
+
+  function showAllGraph() {
+    cy.elements().removeClass("hidden");
+    dramaticLayout();
   }
 
   function showDetails(ele) {
@@ -217,7 +227,7 @@
     const label = d.label || (d.labels && d.labels[0]) || "Node";
 
     const rows = Object.entries(d)
-      .filter(([k]) => !["color","title","label"].includes(k))
+      .filter(([k]) => !["title"].includes(k))
       .sort((a,b) => a[0].localeCompare(b[0]))
       .map(([k,v]) => `
         <div class="kv">
@@ -227,48 +237,41 @@
       `).join("");
 
     document.getElementById("details").innerHTML = `
-      <div style="font-weight:700; font-size:16px; margin-bottom:6px;">${d.title || label}</div>
+      <div style="font-weight:700; font-size:16px; margin-bottom:6px;">${ele.data("title") || label}</div>
       <div class="muted">Type: <code>${label}</code></div>
       <hr />
       ${rows || "<div class='muted'>No properties</div>"}
     `;
   }
 
-  function dimAll(on) {
-    if (on) cy.elements().addClass("dim");
-    else cy.elements().removeClass("dim");
+  function expandOneHop(node) {
+    // Controlled expansion: only direct neighbors + connecting edges
+    const edges = node.connectedEdges();
+    const neighbors = edges.connectedNodes();
+    node.removeClass("hidden");
+    edges.removeClass("hidden");
+    neighbors.removeClass("hidden");
+    dramaticLayout();
   }
+
+  function dimAll(on) {
+    if (on) {
+      cy.elements().addClass("dim");
+    } else {
+      cy.elements().removeClass("dim");
+    }
+  }
+
   function highlightNeighborhood(node) {
     dimAll(true);
-    node.closedNeighborhood().removeClass("dim").addClass("hi");
+    const hood = node.closedNeighborhood();
+    hood.removeClass("dim");
+    hood.addClass("hi");
   }
+
   function clearHighlights() {
     cy.elements().removeClass("hi");
     dimAll(false);
-  }
-
-  function startLandingView() {
-    cy.elements().addClass("hidden");
-
-    // Show only landing nodes + their connecting edges between visible nodes (optional)
-    const landingNodes = cy.nodes().filter(n => LANDING_LABELS.has(n.data("label")));
-    landingNodes.removeClass("hidden");
-
-    // keep edges hidden at start to reduce mess; uncomment next line if you want edges among them
-    // landingNodes.connectedEdges().removeClass("hidden");
-
-    makeLandingLayout();
-
-    document.getElementById("details").innerHTML =
-      "<div class='muted'>Landing view loaded. Click a node to expand neighbors and view properties.</div>";
-  }
-
-  function expandOneHop(node) {
-    const edges = node.connectedEdges().filter(e => !e.hasClass("hidden"));
-    // We want to reveal edges even if hidden:
-    node.connectedEdges().removeClass("hidden");
-    node.connectedEdges().connectedNodes().removeClass("hidden");
-    makeDramaticLayout();
   }
 
   async function main() {
@@ -278,7 +281,7 @@
 
     if (!elements || !elements.nodes || !elements.edges) {
       document.getElementById("details").innerHTML =
-        "<b>Error</b><br><br>Could not load graph.json. Make sure it is in the repo root.";
+        "<b>Could not load graph.json</b><br><br>Check that graph.json exists in the repo root.";
       return;
     }
 
@@ -286,12 +289,13 @@
       const d = n.data || {};
       const label = (d.labels && d.labels[0]) || "Other";
       const color = LABEL_COLORS[label] || "#FFD34A";
+
       return {
         data: {
           ...d,
           label,
           color,
-          title: displayTitleForNode(d)
+          title: pickTitle(d)
         }
       };
     });
@@ -310,10 +314,14 @@
       container: document.getElementById("cy"),
       elements: { nodes, edges },
       style: [
+        // Hidden
         { selector: ".hidden", style: { "display": "none" } },
+
+        // Dim & highlight classes
         { selector: ".dim", style: { "opacity": 0.12 } },
         { selector: ".hi", style: { "opacity": 1 } },
 
+        // Nodes
         {
           selector: "node",
           style: {
@@ -331,10 +339,21 @@
             "text-outline-color": "#050711"
           }
         },
-        { selector: 'node[label = "CircularValueChain"]', style: { "width": 36, "height": 36, "border-width": 3, "font-size": 12 } },
-        { selector: 'node[label = "Partner"]', style: { "width": 26, "height": 26 } },
-        { selector: 'node[label = "Deliverable"]', style: { "width": 24, "height": 24 } },
+        // Make anchor nodes bigger
+        {
+          selector: 'node[label = "CircularValueChain"]',
+          style: { "width": 36, "height": 36, "border-width": 3, "font-size": 12 }
+        },
+        {
+          selector: 'node[label = "Partner"]',
+          style: { "width": 26, "height": 26, "border-width": 2 }
+        },
+        {
+          selector: 'node[label = "Deliverable"]',
+          style: { "width": 24, "height": 24, "border-width": 2 }
+        },
 
+        // Edges
         {
           selector: "edge",
           style: {
@@ -344,12 +363,11 @@
             "target-arrow-shape": "triangle",
             "target-arrow-color": "rgba(180,200,255,0.45)",
             "arrow-scale": 1.1,
+            "label": "data(label)",
             "font-size": 9,
-            "color": "rgba(233,236,255,0.55)",
+            "color": "rgba(233,236,255,0.65)",
             "text-outline-width": 2,
-            "text-outline-color": "#050711",
-            // Edge labels off by default (cleaner). Turn on if needed:
-            // "label": "data(label)"
+            "text-outline-color": "#050711"
           }
         }
       ]
@@ -359,7 +377,7 @@
     cy.on("mouseover", "node", (evt) => highlightNeighborhood(evt.target));
     cy.on("mouseout", "node", () => clearHighlights());
 
-    // Click behavior: details + expand
+    // Click expand + details
     cy.on("tap", "node", (evt) => {
       const n = evt.target;
       showDetails(n);
@@ -367,16 +385,13 @@
     });
 
     // Buttons
-    document.getElementById("btnHome").onclick = () => startLandingView();
-    document.getElementById("btnShowAll").onclick = () => {
-      cy.elements().removeClass("hidden");
-      makeDramaticLayout();
-    };
+    document.getElementById("btnHome").onclick = () => showAnchorsOnly();
+    document.getElementById("btnShowAll").onclick = () => showAllGraph();
 
     document.getElementById("btnFreeze").onclick = () => cy.nodes().lock();
     document.getElementById("btnUnfreeze").onclick = () => cy.nodes().unlock();
 
-    // Search
+    // Search (any property)
     document.getElementById("search").addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       const q = e.target.value.trim().toLowerCase();
@@ -388,23 +403,26 @@
       }).first();
 
       if (hit && hit.length) {
+        // Reveal node and neighbors so user can see it
         hit.removeClass("hidden");
-        showDetails(hit);
-        // Gentle centering only (no zoom)
-        cy.animate({ center: { eles: hit } }, { duration: 250 });
         expandOneHop(hit);
+        showDetails(hit);
+
+        cy.animate({ center: { eles: hit }, zoom: 1.2 }, { duration: 250 });
+        highlightNeighborhood(hit);
+        setTimeout(() => clearHighlights(), 900);
       }
     });
 
-    // Start
-    startLandingView();
+    // Start view: anchors only, no expansion
+    showAnchorsOnly();
   }
 
   main().catch(err => {
     console.error(err);
-    document.getElementById("details").innerHTML = "<b>Error</b><br><br>" + String(err);
+    document.getElementById("details").innerHTML =
+      "<b>Error</b><br><br>" + String(err);
   });
 </script>
 </body>
 </html>
-
