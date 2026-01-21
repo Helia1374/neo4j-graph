@@ -135,14 +135,14 @@
     if (label === "Deliverable") {
       return asNiceText(d.deliverables_no) || asNiceText(d.deliverables_name) || asNiceText(d.id);
     }
-   if (label === "CircularValueChain") {
+if ((label || "").toLowerCase().includes("circularvaluechain")) {
   return asNiceText(d.valuechain_name)
-    || asNiceText(d.valuechain)
+    || asNiceText(d["valuechain_name"])
+    || asNiceText(d.valuechainName)
     || asNiceText(d.value_chains)
     || asNiceText(d.value_chain)
     || asNiceText(d.id);
 }
-
     return asNiceText(d.phase_id) || asNiceText(d.demonstrations) || asNiceText(d.id);
   }
 
@@ -449,4 +449,5 @@
 </script>
 </body>
 </html>
+
 
