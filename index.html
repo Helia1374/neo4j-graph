@@ -314,11 +314,15 @@
 
   // relationship labels: show on hover-focus + when zoomed in
   const EDGE_LABEL_ZOOM = 1.05;
-  function updateEdgeLabelVisibility() {
-    const z = cy.zoom();
-    if (z >= EDGE_LABEL_ZOOM) cy.addClass("show-edge-labels");
-    else cy.removeClass("show-edge-labels");
+function updateEdgeLabelVisibility() {
+  const z = cy.zoom();
+  if (z >= EDGE_LABEL_ZOOM) {
+    cy.edges().addClass("show-edge-labels");
+  } else {
+    cy.edges().removeClass("show-edge-labels");
   }
+}
+
 
   async function main() {
     const res = await fetch("./graph.json", { cache: "no-store" });
@@ -405,15 +409,16 @@
           }
         },
         {
-          selector: ".show-edge-labels edge",
-          style: {
-            "label":"data(label)",
-            "text-background-opacity":0.70,
-            "text-background-color":"rgba(0,0,0,0.75)",
-            "text-background-padding":"2px",
-            "text-rotation":"autorotate"
-          }
-        },
+  selector: "edge.show-edge-labels",
+  style: {
+    "label":"data(label)",
+    "text-background-opacity":0.70,
+    "text-background-color":"rgba(0,0,0,0.75)",
+    "text-background-padding":"2px",
+    "text-rotation":"autorotate"
+  }
+}
+,
         {
           selector:"edge.edgeLabelOn",
           style:{
@@ -484,3 +489,4 @@
 </script>
 </body>
 </html>
+
