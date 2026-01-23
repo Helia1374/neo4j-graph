@@ -113,19 +113,28 @@
       <h3>Details</h3>
       <div id="details" class="muted">Home shows hubs. Double click one hub to open that category.</div>
       <hr />
-      <div class="muted">Tip: Hover a node to reduce clutter. Zoom in to see relationship names.</div>
+      <div class="muted">Tip: Hover a node to reduce clutter. Relationship names show on focused edges (and when zoomed in).</div>
     </div>
   </div>
 
 <script>
+  // Node colors (real nodes)
   const COLORS = {
-    hub: "#B8BFFF",
     CircularValueChain: "#00E5FF",
     Partner: "#FF2BD6",
     Deliverable: "#9BFF3A",
     Demonstration: "#FFD34A",
     Innovation: "#FF7A00",
     Other: "#A3A9FF"
+  };
+
+  // Hub colors (different from each other)
+  const HUB_COLORS = {
+    CircularValueChain: "#4CC9FF",
+    Partner: "#FF4DE1",
+    Deliverable: "#B4FF4A",
+    Demonstration: "#FFE06A",
+    Innovation: "#FF9A3C"
   };
 
   const HUBS = [
@@ -142,7 +151,6 @@
     if (Array.isArray(raw) && raw[0] && raw[0].json && raw[0].json.elements) return raw[0].json.elements;
     return raw?.elements ?? null;
   }
-
   function asNiceText(v) {
     if (v == null) return "";
     if (Array.isArray(v)) return v.filter(Boolean).join(" • ");
@@ -206,13 +214,21 @@
     document.getElementById("details").innerHTML = head + (rows || `<div class="muted">No properties</div>`);
   }
 
+  // Focus behavior + show relationship names only for focused neighborhood
   function enableHoverFocus() {
     cy.on("mouseover", "node", (evt) => {
       const n = evt.target;
       cy.elements().addClass("dim");
       n.closedNeighborhood().removeClass("dim").addClass("hi");
+
+      // show edge labels for focused edges only (clean!)
+      cy.edges().removeClass("edgeLabelOn");
+      n.closedNeighborhood().edges().addClass("edgeLabelOn");
     });
-    cy.on("mouseout", "node", () => cy.elements().removeClass("dim hi"));
+    cy.on("mouseout", "node", () => {
+      cy.elements().removeClass("dim hi");
+      cy.edges().removeClass("edgeLabelOn");
+    });
   }
 
   function hubIdFor(label) {
@@ -225,15 +241,18 @@
     return null;
   }
 
+  // Bigger hub circle spacing + avoids overlaps
   function homeView() {
     cy.elements().addClass("hidden");
     cy.$('node[kind = "hub"]').removeClass("hidden");
     cy.edges().addClass("hidden");
 
     const w = cy.width(), h = cy.height();
-    const cx = w * 0.48;
-    const cyy = h * 0.52;
-    const R = Math.min(w,h) * 0.22;
+    const cx = w * 0.47;
+    const cyy = h * 0.53;
+
+    // bigger radius = more distance between hubs
+    const R = Math.min(w,h) * 0.33;
 
     const hubs = HUBS.map(h => cy.getElementById(h.id));
     hubs.forEach((node, i) => {
@@ -245,9 +264,10 @@
     cy.center(cy.$('node[kind = "hub"]'));
 
     document.getElementById("details").innerHTML =
-      `<div class="muted">Home loaded: hubs in a circle. Double click a hub to reveal that category.</div>`;
+      `<div class="muted">Home loaded: hubs spaced in a wide circle. Double click a hub to reveal that category.</div>`;
   }
 
+  // Put category nodes OUTSIDE the hub circle (no more inside hub)
   function revealCategory(label) {
     const hubId = hubIdFor(label);
     if (!hubId) return;
@@ -273,9 +293,11 @@
     cy.edges().addClass("hidden");
     cy.edges().filter(e => e.data("kind")==="hubEdge" && e.data("source")===hubId).removeClass("hidden");
 
+    // Big ring so nodes never overlap hub
     const nodes = group.toArray();
-    const radius = 160;
+    const radius = 260; // <-- pushed outward
     const startAngle = -Math.PI / 2;
+
     nodes.forEach((n, i) => {
       const a = startAngle + (2*Math.PI*i)/Math.max(nodes.length, 1);
       n.position({ x: center.x + radius*Math.cos(a), y: center.y + radius*Math.sin(a) });
@@ -284,9 +306,10 @@
     cy.animate({ center: { eles: hub } }, { duration: 180 });
 
     document.getElementById("details").innerHTML =
-      `<div class="muted"><b>${label}</b> opened. Single click nodes for details. Double click a node to expand its real neighbors.</div>`;
+      `<div class="muted"><b>${label}</b> opened. Single click nodes for details. Hover shows relationship names for that neighborhood.</div>`;
   }
 
+  // Expand neighbors locally (still controlled, still not messy)
   function expandRealNeighbors(node) {
     node.removeClass("hidden");
 
@@ -298,7 +321,7 @@
 
     const c = node.position();
     const neigh = neighbors.toArray().filter(n => n.id() !== node.id());
-    const r = 130;
+    const r = 170; // slightly wider so edges are readable
 
     neigh.forEach((n, i) => {
       if (!n.data("_placed")) {
@@ -311,10 +334,9 @@
     cy.animate({ center: { eles: node } }, { duration: 160 });
   }
 
-  // Double click detection
+  // Double click
   let lastTapTime = 0;
   let lastTapId = null;
-
   function handleTap(ele) {
     const now = Date.now();
     const id = ele.id();
@@ -328,8 +350,8 @@
     else expandRealNeighbors(ele);
   }
 
-  // ===== Edge label toggle on zoom =====
-  const EDGE_LABEL_ZOOM = 1.25; // adjust if you want (higher = show labels later)
+  // Edge labels on zoom: lower threshold so you can see them sooner
+  const EDGE_LABEL_ZOOM = 1.05;
   function updateEdgeLabelVisibility() {
     const z = cy.zoom();
     if (z >= EDGE_LABEL_ZOOM) cy.addClass("show-edge-labels");
@@ -377,7 +399,14 @@
     });
 
     const hubNodes = HUBS.map(h => ({
-      data: { id: h.id, label: h.label, title: h.title, color: COLORS.hub, size: 120, kind: "hub" }
+      data: {
+        id: h.id,
+        label: h.label,
+        title: h.title,
+        color: HUB_COLORS[h.label] || "#B8BFFF",
+        size: 125,
+        kind: "hub"
+      }
     }));
 
     cy = cytoscape({
@@ -390,12 +419,13 @@
           selector: ".hi",
           style: {
             "opacity": 1,
-            "shadow-blur": 28,
-            "shadow-opacity": 0.65,
+            "shadow-blur": 30,
+            "shadow-opacity": 0.7,
             "shadow-color": "#ffffff"
           }
         },
 
+        // Nodes (simple labels with black highlight, like your first version)
         {
           selector: 'node[kind="real"]',
           style: {
@@ -408,76 +438,87 @@
             "color": "#E9ECFF",
             "font-size": 12,
             "text-wrap": "wrap",
-            "text-max-width": 130,
-            "text-outline-width": 3,
-            "text-outline-color": "#050711",
+            "text-max-width": 120,
+            "text-outline-width": 4,
+            "text-outline-color": "#000000",
             "shadow-blur": 16,
             "shadow-color": "data(color)",
             "shadow-opacity": 0.30
           }
         },
 
+        // Hubs: different colors, white label, black outline
         {
           selector: 'node[kind="hub"]',
           style: {
-            "width": 120,
-            "height": 120,
-            "border-width": 4,
+            "width": 125,
+            "height": 125,
+            "border-width": 5,
             "border-color": "rgba(233,236,255,0.35)",
             "background-color": "data(color)",
-            "background-opacity": 0.85,
+            "background-opacity": 0.88,
             "label": "data(title)",
-            "color": "#E9ECFF",
+            "color": "#FFFFFF",
             "font-size": 18,
             "font-weight": "bold",
-            "text-outline-width": 4,
-            "text-outline-color": "#050711",
-            "shadow-blur": 28,
+            "text-outline-width": 5,
+            "text-outline-color": "#000000",
+            "shadow-blur": 30,
             "shadow-color": "data(color)",
-            "shadow-opacity": 0.55
+            "shadow-opacity": 0.60
           }
         },
 
-        /* Wavy edges */
+        // Wavy edges, unlabeled by default
         {
           selector: "edge",
           style: {
             "curve-style": "unbundled-bezier",
-            "control-point-distances": 40,
+            "control-point-distances": 46,
             "control-point-weights": 0.5,
-            "line-color": "rgba(180,200,255,0.20)",
+            "line-color": "rgba(200,220,255,0.20)",
             "width": 2,
             "target-arrow-shape": "triangle",
-            "target-arrow-color": "rgba(180,200,255,0.30)",
-
-            /* IMPORTANT: hide labels by default */
+            "target-arrow-color": "rgba(200,220,255,0.34)",
             "label": "",
             "font-size": 10,
-            "color": "rgba(233,236,255,0.85)",
-            "text-outline-width": 3,
-            "text-outline-color": "#050711",
+            "color": "rgba(255,255,255,0.90)",
+            "text-outline-width": 4,
+            "text-outline-color": "#000000",
             "text-background-opacity": 0
           }
         },
 
-        /* When zoomed in: show relationship names */
+        // Edge labels show when zoomed in
         {
           selector: ".show-edge-labels edge",
           style: {
             "label": "data(label)",
             "text-background-opacity": 0.70,
-            "text-background-color": "rgba(5,7,17,0.85)",
+            "text-background-color": "rgba(0,0,0,0.75)",
             "text-background-padding": "2px",
             "text-rotation": "autorotate"
           }
         },
 
-        /* Hub edges unlabeled always */
+        // Edge labels show on hover-focus even if zoomed out (but only for focused neighborhood)
         {
-          selector: 'edge[kind = "hubEdge"]',
+          selector: "edge.edgeLabelOn",
+          style: {
+            "label": "data(label)",
+            "text-background-opacity": 0.70,
+            "text-background-color": "rgba(0,0,0,0.75)",
+            "text-background-padding": "2px",
+            "text-rotation": "autorotate"
+          }
+        },
+
+        // Hub edges always unlabeled
+        {
+          selector: 'edge[kind="hubEdge"]',
           style: {
             "curve-style": "unbundled-bezier",
-            "control-point-distances": 28,
+            "control-point-distances": 32,
             "control-point-weights": 0.5,
             "line-color": "rgba(233,236,255,0.22)",
             "target-arrow-color": "rgba(233,236,255,0.28)",
@@ -495,7 +536,6 @@
     enableHoverFocus();
     cy.on("tap", "node", (evt) => handleTap(evt.target));
 
-    // Toggle edge label visibility as user zooms
     cy.on("zoom", updateEdgeLabelVisibility);
     updateEdgeLabelVisibility();
 
@@ -503,7 +543,7 @@
     document.getElementById("btnShowAll").onclick = () => {
       cy.elements().removeClass("hidden");
       document.getElementById("details").innerHTML =
-        `<div class="muted">All nodes shown. Hover a node to focus. Zoom in to see relationship names.</div>`;
+        `<div class="muted">All nodes shown. Hover a node to focus and see relationship names.</div>`;
       updateEdgeLabelVisibility();
     };
 
