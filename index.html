@@ -5,9 +5,7 @@
   <meta charset="utf-8" />
   <title>Graph Explorer</title>
 
-  <!-- Cytoscape core -->
   <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
-  <!-- Physics layout -->
   <script src="https://unpkg.com/cytoscape-fcose@2.2.0/cytoscape-fcose.js"></script>
 
   <style>
@@ -38,7 +36,6 @@
       animation: drift 12s ease-in-out infinite alternate;
     }
 
-    /* ✅ Keep Cytoscape canvas layers aligned */
     #cy canvas{
       position:absolute !important;
       inset:0 !important;
@@ -156,7 +153,7 @@
         • Move OFF = click/select without dragging<br>
         • Right click node = pin/unpin<br>
         • Double click node = expand neighbors<br>
-        • Shift+click two nodes = shortest path highlight
+        • Shift+click two real nodes = shortest path highlight
       </div>
 
       <hr />
@@ -179,7 +176,6 @@
 <script>
   if (typeof cytoscapeFcose !== "undefined") cytoscape.use(cytoscapeFcose);
 
-  // ----------------------------- Config -----------------------------
   const COLORS = {
     Material: "#00E5FF",
     ValueChainStage: "#3DB4FF",
@@ -187,6 +183,7 @@
     Deliverable: "#9BFF3A",
     Demonstration: "#FFD34A",
     Innovation: "#FF7A00",
+    KeyExploitableResult: "#7CFFB2",
     Phase: "#A3A9FF",
     CircularPath: "#B8BFFF",
     Path: "#B8BFFF",
@@ -198,17 +195,26 @@
     Partner: "#FF4DE1",
     Deliverable: "#B4FF4A",
     Demonstration: "#FFE06A",
-    Innovation: "#FF9A3C"
+    Innovation: "#FF9A3C",
+    KeyExploitableResult: "#7CFFB2"
   };
 
-  // ✅ ValueChainStage hub removed
   const HUBS = [
     { id: "HUB_MAT", label: "Material", title: "Materials" },
     { id: "HUB_PARTNER", label: "Partner", title: "Partners" },
     { id: "HUB_DELIV", label: "Deliverable", title: "Deliverables" },
     { id: "HUB_DEMO", label: "Demonstration", title: "Demonstrations" },
-    { id: "HUB_INNO", label: "Innovation", title: "Innovations" }
+    { id: "HUB_INNO", label: "Innovation", title: "Innovations" },
+    { id: "HUB_KER", label: "KeyExploitableResult", title: "Key Exploitable Results" }
   ];
+  const HUB_LOGOS = {
+  HUB_MAT: "./logos/hubs/materials.png",
+  HUB_PARTNER: "./logos/hubs/partners.png",
+  HUB_DELIV: "./logos/hubs/deliverables.png",
+  HUB_DEMO: "./logos/hubs/demonstrations.png",
+  HUB_INNO: "./logos/hubs/innovations.png",
+  HUB_KER: "./logos/hubs/key_results.png"
+};
 
   const BATCH = 12;
   const SEED_RADIUS = 110;
@@ -218,7 +224,6 @@
 
   let cy;
   let runningLayout = null;
-
   let moveMode = false;
 
   const expandState = new Map();
@@ -229,7 +234,22 @@
 
   const enabledLabels = new Map();
 
-  // ----------------------------- Utils -----------------------------
+  const INNOVATION_LOGOS = {
+    "Interfaces to existing databases and planning tools": "./logos/innovations/interfaces_to_existing_databases_and_planning_tools.png",
+    "BIM supported modular dismantling planning methods": "./logos/innovations/bim_modular_dismantling_planning_methods.png",
+    "Strategic circular decision making for real estate assets": "./logos/innovations/strategic_circular_decision_making_for_real_estate_assets.png",
+    "Strategic circular decision making for real estate assets ": "./logos/innovations/strategic_circular_decision_making_for_real_estate_assets.png",
+    "On-site waste assessment and seperation": "./logos/innovations/on-site_waste_assessment_and_separation.png",
+    "On-site waste assessment and seperation ": "./logos/innovations/on-site_waste_assessment_and_separation.png",
+    "Upgrade solutions for construction products": "./logos/innovations/upgrade_solutions_for_construction_products.png",
+    "Upgrade solutions for construction products ": "./logos/innovations/upgrade_solutions_for_construction_products.png",
+    "Architectural design methods": "./logos/innovations/architectural_design_method.png",
+    "Lean construction resource planning": "./logos/innovations/lean_construction_resource_planning.png",
+    "Valuation of recycled materials": "./logos/innovations/valuation_of_recycled_materials.png",
+    "BIM for circular value flow planning": "./logos/innovations/bim_for_circular_value_flow_planning.png",
+    "Building inspection and valuation": "./logos/innovations/building_inspection_and_valuation.png"
+  };
+
   function asNiceText(v) {
     if (v == null) return "";
     if (Array.isArray(v)) return v.filter(Boolean).join(" • ");
@@ -276,9 +296,24 @@
     return String(v);
   }
 
-  // --------- “name first, description second” for details panel ----------
+  function getPrimaryKnownLabel(labels) {
+    const arr = Array.isArray(labels) ? labels : [];
+
+    if (arr.includes("Material")) return "Material";
+    if (arr.includes("ValueChainStage")) return "ValueChainStage";
+    if (arr.includes("Partner")) return "Partner";
+    if (arr.includes("Deliverable")) return "Deliverable";
+    if (arr.includes("Demonstration")) return "Demonstration";
+    if (arr.includes("Innovation")) return "Innovation";
+    if (arr.includes("KeyExploitableResult")) return "KeyExploitableResult";
+    if (arr.includes("Phase")) return "Phase";
+    if (arr.includes("CircularPath")) return "CircularPath";
+    if (arr.includes("Path")) return "Path";
+
+    return arr[0] || "Other";
+  }
+
   function getBestName(d) {
-    // d.title is already a nice label computed for the node
     return (d.title && String(d.title).trim()) ? String(d.title).trim() : (d.label || "Node");
   }
 
@@ -320,10 +355,9 @@
     );
   }
 
-  // ----------------------------- Labels (for node title in graph) -----------------------------
   function pickNodeLabel(d) {
     const labels = d.labels || [];
-    const label = labels[0] || "Other";
+    const label = getPrimaryKnownLabel(labels);
     const p = d.properties || {};
 
     if (label === "Material") return asNiceText(p.material) || asNiceText(p.name) || asNiceText(d.id);
@@ -336,6 +370,7 @@
     if (label === "Deliverable") return asNiceText(p.deliverables_no) || asNiceText(p.deliverables_name) || asNiceText(d.id);
     if (label === "Demonstration") return asNiceText(p.demonstrations) || asNiceText(p.demonstrations_type) || asNiceText(d.id);
     if (label === "Innovation") return asNiceText(p.innovations_name) || asNiceText(p.innovations) || asNiceText(d.id);
+    if (label === "KeyExploitableResult") return asNiceText(p.name) || asNiceText(d.id);
     if (label === "Phase") return asNiceText(p.phase_id) || asNiceText(p.phases) || asNiceText(p.name) || asNiceText(d.id);
     if (label === "CircularPath" || label === "Path") return asNiceText(p.name) || asNiceText(p.phase_path) || asNiceText(d.id);
 
@@ -349,13 +384,16 @@
     if (label === "Deliverable") return 22;
     if (label === "Demonstration") return 21;
     if (label === "Innovation") return 21;
+    if (label === "KeyExploitableResult") return 21;
     if (label === "Phase") return 18;
     if (label === "CircularPath" || label === "Path") return 20;
     return 16;
   }
-  function colorForLabel(label) { return COLORS[label] || COLORS.Other; }
 
-  // ----------------------------- Details -----------------------------
+  function colorForLabel(label) {
+    return COLORS[label] || COLORS.Other;
+  }
+
   function showDetails(ele) {
     const d = ele.data();
 
@@ -374,7 +412,6 @@
       return;
     }
 
-    // Description first (if exists)
     const desc = getBestDescription(d);
     const descHtml = desc ? `
       <hr />
@@ -382,10 +419,6 @@
       <div class="descBox">${renderValue(desc.value)}</div>
     ` : "";
 
-    // Build “Properties” list with priority:
-    // 1) Name-related keys
-    // 2) Description key removed (since we show it above)
-    // 3) Everything else (alphabetical)
     const props = d.properties || {};
 
     const nameKeys = [
@@ -398,7 +431,7 @@
     ];
 
     const skipKeys = new Set([
-      "color","title","kind","_placed","size","labels","label"
+      "color","title","kind","_placed","size","labels","label","logo"
     ]);
 
     const descKey = desc?.key;
@@ -410,11 +443,9 @@
       return true;
     }
 
-    // priority list from properties
     const priority = [];
     for (const k of nameKeys) if (k in props && includeKey(k)) priority.push(k);
 
-    // then rest
     const rest = Object.keys(props)
       .filter(k => includeKey(k) && !priority.includes(k))
       .sort((a,b)=>a.localeCompare(b));
@@ -423,7 +454,6 @@
       .map(k => `<div class="kv"><div class="k">${k}</div><div class="v">${renderValue(props[k])}</div></div>`)
       .join("");
 
-    // Actions
     const actions = `
       <hr />
       <div class="row">
@@ -441,7 +471,6 @@
       (rows || `<div class="muted">No properties</div>`) +
       actions;
 
-    // wire actions
     document.getElementById("btnExpandMore").onclick = () => expandRealNeighbors(ele, { forceMore:true });
     document.getElementById("btnCollapseNode").onclick = () => collapseNeighborhood(ele);
     document.getElementById("btnPin").onclick = () => {
@@ -451,7 +480,6 @@
     document.getElementById("btnCenter").onclick = () => cy.animate({ center:{ eles: ele } }, { duration: 200 });
   }
 
-  // ----------------------------- Hover focus -----------------------------
   function enableHoverFocus() {
     cy.on("mouseover", "node", (evt) => {
       const n = evt.target;
@@ -466,7 +494,6 @@
     });
   }
 
-  // ----------------------------- Move mode -----------------------------
   function setMoveMode(on){
     moveMode = on;
     cy.nodes().forEach(n => n.grabbable(on));
@@ -475,7 +502,6 @@
     b.classList.toggle("on", on);
   }
 
-  // ----------------------------- Hub helpers -----------------------------
   function hubIdFor(label) {
     const L = (label || "").toLowerCase();
     if (L === "material") return "HUB_MAT";
@@ -483,6 +509,7 @@
     if (L === "deliverable") return "HUB_DELIV";
     if (L === "demonstration") return "HUB_DEMO";
     if (L === "innovation") return "HUB_INNO";
+    if (L === "keyexploitatableresult") return "HUB_KER";
     return null;
   }
 
@@ -491,13 +518,11 @@
     runningLayout = null;
   }
 
-  // ✅ FIX: Home must show ALL hubs again (and undo any display:none)
   function homeView(force=true) {
     stopLayout();
     cy.nodes().unlock();
     clearHighlights({ keepBreadcrumb:false });
 
-    // Reset display styles (important!)
     cy.nodes().style("display","element");
     cy.edges().style("display","element");
 
@@ -507,7 +532,6 @@
       cy.edges('[kind="hubEdge"]').remove();
     }
 
-    // show all hubs
     const hubNodes = cy.$('node[kind="hub"]');
     hubNodes.removeClass("hidden").style("display","element");
 
@@ -525,7 +549,6 @@
     cy.zoom(1);
     cy.center(hubNodes);
 
-    // ensure real nodes remain hidden on home
     applyFilters();
     cy.nodes('[kind="real"]').forEach(n => { n.addClass("hidden"); n.style("display","none"); });
     cy.edges('[kind="realEdge"]').forEach(e => { e.addClass("hidden"); e.style("display","none"); });
@@ -546,23 +569,50 @@
     cy.edges().addClass("hidden");
     cy.edges('[kind="hubEdge"]').remove();
 
-    // hide all hubs, show only selected
     cy.$('node[kind="hub"]').addClass("hidden").style("display","none");
     const hub = cy.getElementById(hubId);
     hub.removeClass("hidden").style("display","element");
 
     const center = hub.position();
 
-    const group = cy.nodes().filter(n => n.data("kind")==="real" && n.data("label")===label);
+    const group = cy.nodes().filter(n => {
+      if (n.data("kind") !== "real") return false;
+
+      const nodeLabel = n.data("label");
+      const labels = n.data("labels") || [];
+      const p = n.data("properties") || {};
+
+      if (label === "KeyExploitableResult") {
+        return (
+          nodeLabel === "KeyExploitableResult" ||
+          labels.includes("KeyExploitableResult") ||
+          (
+            typeof p.name === "string" &&
+            typeof p.description === "string" &&
+            Object.prototype.hasOwnProperty.call(p, "background_IP")
+          )
+        );
+      }
+
+      return nodeLabel === label || labels.includes(label);
+    });
+
     group.removeClass("hidden").style("display","element");
 
     const newEdges = [];
     group.forEach(n => {
       newEdges.push({
         group: "edges",
-        data: { id: `HE_${hubId}_${n.id()}`, source: hubId, target: n.id(), label: "", kind: "hubEdge" }
+        data: {
+          id: `HE_${hubId}_${n.id()}`,
+          source: hubId,
+          target: n.id(),
+          label: "",
+          kind: "hubEdge"
+        }
       });
     });
+
     if (newEdges.length) cy.add(newEdges);
     cy.edges('[kind="hubEdge"]').removeClass("hidden").style("display","element");
 
@@ -579,7 +629,10 @@
       const radius = baseR + ring * ringGap;
       const a = startAngle + (2 * Math.PI * idx) / Math.max(ringCount, 1);
 
-      n.position({ x: center.x + radius * Math.cos(a), y: center.y + radius * Math.sin(a) });
+      n.position({
+        x: center.x + radius * Math.cos(a),
+        y: center.y + radius * Math.sin(a)
+      });
       n.data("_placed", true);
       expandState.set(n.id(), { shownCount: 0, orderedNeighbors: null });
     });
@@ -588,10 +641,9 @@
     cy.fit(cy.elements().filter(e => e.style("display") !== "none"), 60);
 
     document.getElementById("details").innerHTML =
-      `<div class="muted"><b>${label}</b> opened. Double click any node to expand.</div>`;
+      `<div class="muted"><b>${label}</b> opened. Nodes shown: <b>${group.length}</b></div>`;
   }
 
-  // ----------------------------- Filters -----------------------------
   function buildFiltersFromGraph() {
     const labels = new Set();
     cy.nodes('[kind="real"]').forEach(n => labels.add(n.data("label") || "Other"));
@@ -624,7 +676,6 @@
       const lbl = n.data("label") || "Other";
       const on = enabledLabels.get(lbl) !== false;
       n.toggleClass("filtered", !on);
-      // display controlled later by hidden/filtered + current screen state
       if (n.hasClass("hidden") || !on) n.style("display","none");
       else n.style("display","element");
     });
@@ -644,7 +695,6 @@
     });
   }
 
-  // ----------------------------- Breadcrumb + path highlighting -----------------------------
   function pushBreadcrumb(node) {
     const id = node.id();
     if (breadcrumb[breadcrumb.length-1] !== id) breadcrumb.push(id);
@@ -764,7 +814,6 @@
     }
   }
 
-  // ----------------------------- Local physics -----------------------------
   function localSubgraphAround(node, hops=2) {
     let s = node;
     for (let i=0; i<hops; i++) s = s.closedNeighborhood();
@@ -777,7 +826,7 @@
     const local = localSubgraphAround(centerNode, LOCAL_HOPS);
     cy.nodes('[kind="real"]').forEach(n => {
       if (n.style("display")==="none") return;
-      if (n.locked()) return; // pinned stays pinned
+      if (n.locked()) return;
       if (local.contains(n)) n.unlock();
       else n.lock();
     });
@@ -812,7 +861,6 @@
     runningLayout.run();
   }
 
-  // ----------------------------- Expand / Collapse -----------------------------
   function getOrderedNeighbors(node) {
     const edges = node.connectedEdges().filter(e => e.data("kind")==="realEdge");
     const neigh = edges.connectedNodes().filter(n => n.id() !== node.id()).toArray();
@@ -838,7 +886,6 @@
   }
 
   function expandRealNeighbors(node, opts={}) {
-    // hide hubs + hub edges while exploring
     cy.nodes('[kind="hub"]').addClass("hidden").style("display","none");
     cy.edges('[kind="hubEdge"]').addClass("hidden").style("display","none");
 
@@ -896,7 +943,7 @@
     expandState.set(node.id(), st);
 
     pushBreadcrumb(node);
-    showDetails(node); // keep details panel consistent & ordered
+    showDetails(node);
   }
 
   function collapseNeighborhood(node) {
@@ -923,19 +970,16 @@
     showDetails(node);
   }
 
-  // ----------------------------- Edge label visibility -----------------------------
   function updateEdgeLabelVisibility() {
     const z = cy.zoom();
     if (z >= EDGE_LABEL_ZOOM) cy.edges().addClass("show-edge-labels");
     else cy.edges().removeClass("show-edge-labels");
   }
 
-  // ----------------------------- Click handling -----------------------------
   let lastTapTime = 0;
   let lastTapId = null;
 
   function handleTap(ele, evt) {
-    // Shift+click: shortest path
     if (evt && evt.originalEvent && evt.originalEvent.shiftKey && ele.data("kind")==="real") {
       if (!pathA) {
         pathA = ele;
@@ -976,7 +1020,6 @@
     });
   }
 
-  // ----------------------------- JSON parsing -----------------------------
   function rowsNrmToElements(rows) {
     const nodeMap = new Map();
     const idMap = new Map();
@@ -1063,7 +1106,6 @@
     return null;
   }
 
-  // ----------------------------- Main -----------------------------
   async function main() {
     const res = await fetch("./graph.json", { cache: "no-store" });
     if (!res.ok) {
@@ -1084,21 +1126,29 @@
 
     const realNodes = elements.nodes.map(n => {
       const d = n.data || n;
-      const labels = d.labels || (d.data?.labels) || [];
+      const labels = Array.isArray(d.labels || (d.data?.labels)) ? (d.labels || (d.data?.labels) || []) : [];
       const properties = d.properties || (d.data?.properties) || {};
       const id = d.id || d.elementId || (d.data && d.data.id) || neoId(d);
 
       const nodeData = { id: String(id), labels, properties };
-      const label = (labels && labels[0]) || "Other";
+      const label = getPrimaryKnownLabel(labels);
+      const title = pickNodeLabel(nodeData);
+
+      let logo = null;
+      if (label === "Innovation") {
+        const innovationName = (properties.innovations_name || "").trim();
+        logo = INNOVATION_LOGOS[innovationName] || INNOVATION_LOGOS[properties.innovations_name] || null;
+      }
 
       return {
         data: {
           ...nodeData,
           label,
-          title: pickNodeLabel(nodeData),
+          title,
           color: colorForLabel(label),
           size: sizeForLabel(label),
-          kind: "real"
+          kind: "real",
+          logo
         }
       };
     });
@@ -1123,18 +1173,32 @@
     const broken = realEdges.filter(e => !nodeIdSet.has(e.data.source) || !nodeIdSet.has(e.data.target));
     const goodEdges = realEdges.filter(e => nodeIdSet.has(e.data.source) && nodeIdSet.has(e.data.target));
 
+    const kerCount = realNodes.filter(n =>
+      n.data.label === "KeyExploitableResult" ||
+      (n.data.labels || []).includes("KeyExploitableResult")
+    ).length;
+
     document.getElementById("debug").innerHTML =
       `<div class="pill">Loaded nodes: <b>${realNodes.length}</b></div>
        <div class="pill">Edges in file: <b>${realEdges.length}</b></div>
        <div class="pill">Drawable edges: <b>${goodEdges.length}</b></div>
+       <div class="pill">KER nodes found: <b>${kerCount}</b></div>
        ${broken.length ? `<div style="margin-top:8px;" class="muted">⚠️ <b>${broken.length}</b> edges reference missing node ids (id mismatch).</div>` : ""}`;
 
     document.getElementById("stats").innerHTML =
       `Nodes: <b>${realNodes.length}</b> • Edges: <b>${goodEdges.length}</b>`;
 
     const hubNodes = HUBS.map(h => ({
-      data: { id:h.id, label:h.label, title:h.title, color:HUB_COLORS[h.label] || "#B8BFFF", size:125, kind:"hub" }
-    }));
+  data: {
+    id: h.id,
+    label: h.label,
+    title: h.title,
+    color: HUB_COLORS[h.label] || "#B8BFFF",
+    size: 125,
+    kind: "hub",
+    logo: HUB_LOGOS[h.id] || null
+  }
+}));
 
     cy = cytoscape({
       container: document.getElementById("cy"),
@@ -1151,28 +1215,85 @@
         { selector: "edge.spath", style: { "width": 4, "line-color":"rgba(0,229,255,0.50)", "target-arrow-color":"rgba(0,229,255,0.65)" } },
 
         {
-          selector: 'node[kind="real"]',
+          selector: 'node[kind="real"][label="Innovation"]',
           style: {
-            "background-color":"data(color)",
-            "width":"data(size)","height":"data(size)",
-            "border-width":2,"border-color":"rgba(255,255,255,0.18)",
-            "label":"data(title)","color":"#E9ECFF","font-size":12,
-            "text-wrap":"wrap","text-max-width":120,
-            "text-outline-width":4,"text-outline-color":"#000",
-            "shadow-blur":16,"shadow-color":"data(color)","shadow-opacity":0.30
+            "background-color":"#ffffff",
+            "background-image":"data(logo)",
+            "background-fit":"contain",
+            "background-width":"90%",
+            "background-height":"90%",
+            "background-position-x":"50%",
+            "background-position-y":"50%",
+            "width":55,
+            "height":55,
+            "border-width":2,
+            "border-color":"rgba(255,255,255,0.22)",
+            "label":"data(title)",
+            "color":"#E9ECFF",
+            "font-size":12,
+            "text-wrap":"wrap",
+            "text-max-width":120,
+            "text-outline-width":4,
+            "text-outline-color":"#000",
+            "shadow-blur":16,
+            "shadow-color":"data(color)",
+            "shadow-opacity":0.30
           }
         },
         {
-          selector:'node[kind="hub"]',
-          style:{
-            "width":125,"height":125,
-            "border-width":5,"border-color":"rgba(233,236,255,0.35)",
-            "background-color":"data(color)","background-opacity":0.88,
-            "label":"data(title)","color":"#FFF","font-size":18,"font-weight":"bold",
-            "text-outline-width":5,"text-outline-color":"#000",
-            "shadow-blur":30,"shadow-color":"data(color)","shadow-opacity":0.60
+          selector: 'node[kind="real"]',
+          style: {
+            "background-color":"data(color)",
+            "width":"data(size)",
+            "height":"data(size)",
+            "border-width":2,
+            "border-color":"rgba(255,255,255,0.18)",
+            "label":"data(title)",
+            "color":"#E9ECFF",
+            "font-size":12,
+            "text-wrap":"wrap",
+            "text-max-width":120,
+            "text-outline-width":4,
+            "text-outline-color":"#000",
+            "shadow-blur":16,
+            "shadow-color":"data(color)",
+            "shadow-opacity":0.30
           }
         },
+        {
+  selector:'node[kind="hub"]',
+  style:{
+    "shape": "round-rectangle",
+    "width": 120,
+    "height": 120,
+
+    "background-color": "#ffffff",
+    "background-image": "data(logo)",
+    "background-fit": "contain",
+    "background-width": "72%",
+    "background-height": "72%",
+    "background-position-x": "50%",
+    "background-position-y": "38%",
+    "background-repeat": "no-repeat",
+
+    "border-width": 4,
+    "border-color": "rgba(233,236,255,0.35)",
+
+    "label": "data(title)",
+    "color": "#FFF",
+    "font-size": 16,
+    "font-weight": "bold",
+    "text-valign": "bottom",
+    "text-margin-y": 10,
+
+    "text-outline-width": 5,
+    "text-outline-color": "#000",
+
+    "shadow-blur": 25,
+    "shadow-color": "data(color)",
+    "shadow-opacity": 0.60
+  }
+},
 
         {
           selector:"edge",
@@ -1217,7 +1338,6 @@
       motionBlur: false
     });
 
-    // default: no accidental dragging
     setMoveMode(false);
 
     enableHoverFocus();
