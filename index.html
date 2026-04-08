@@ -184,6 +184,8 @@
     Demonstration: "#FFD34A",
     Innovation: "#FF7A00",
     KeyExploitableResult: "#7CFFB2",
+    Standard: "#4FD18B",
+    Publication: "#FF8ACB",
     Phase: "#A3A9FF",
     CircularPath: "#B8BFFF",
     Path: "#B8BFFF",
@@ -196,7 +198,9 @@
     Deliverable: "#B4FF4A",
     Demonstration: "#FFE06A",
     Innovation: "#FF9A3C",
-    KeyExploitableResult: "#7CFFB2"
+    KeyExploitableResult: "#7CFFB2",
+    Standard: "#4FD18B",
+    Publication: "#FF8ACB"
   };
 
   const HUBS = [
@@ -205,16 +209,21 @@
     { id: "HUB_DELIV", label: "Deliverable", title: "Deliverables" },
     { id: "HUB_DEMO", label: "Demonstration", title: "Demonstrations" },
     { id: "HUB_INNO", label: "Innovation", title: "Innovations" },
-    { id: "HUB_KER", label: "KeyExploitableResult", title: "Key Exploitable Results" }
+    { id: "HUB_KER", label: "KeyExploitableResult", title: "Key Exploitable Results" },
+    { id: "HUB_STANDARD", label: "Standard", title: "Standards" },
+    { id: "HUB_PUBLICATION", label: "Publication", title: "Publications" }
   ];
+
   const HUB_LOGOS = {
-  HUB_MAT: "./logos/hubs/materials.png",
-  HUB_PARTNER: "./logos/hubs/partners.png",
-  HUB_DELIV: "./logos/hubs/deliverables.png",
-  HUB_DEMO: "./logos/hubs/demonstrations.png",
-  HUB_INNO: "./logos/hubs/innovations.png",
-  HUB_KER: "./logos/hubs/key_results.png"
-};
+    HUB_MAT: "./logos/hubs/materials.png",
+    HUB_PARTNER: "./logos/hubs/partners.png",
+    HUB_DELIV: "./logos/hubs/deliverables.png",
+    HUB_DEMO: "./logos/hubs/demonstrations.png",
+    HUB_INNO: "./logos/hubs/innovations.png",
+    HUB_KER: "./logos/hubs/key_results.png",
+    HUB_STANDARD: "./logos/hubs/standards.png",
+    HUB_PUBLICATION: "./logos/hubs/publications.png"
+  };
 
   const BATCH = 12;
   const SEED_RADIUS = 110;
@@ -306,6 +315,8 @@
     if (arr.includes("Demonstration")) return "Demonstration";
     if (arr.includes("Innovation")) return "Innovation";
     if (arr.includes("KeyExploitableResult")) return "KeyExploitableResult";
+    if (arr.includes("Standard")) return "Standard";
+    if (arr.includes("Publication")) return "Publication";
     if (arr.includes("Phase")) return "Phase";
     if (arr.includes("CircularPath")) return "CircularPath";
     if (arr.includes("Path")) return "Path";
@@ -330,10 +341,11 @@
       "partners_description",
       "partner_description",
       "material_description",
-      "phase_description",
-      "notes",
+      "publication_abstract",
+      "abstract",
       "summary",
-      "abstract"
+      "notes",
+      "phase_description"
     ];
 
     for (const k of candidates) {
@@ -371,6 +383,8 @@
     if (label === "Demonstration") return asNiceText(p.demonstrations) || asNiceText(p.demonstrations_type) || asNiceText(d.id);
     if (label === "Innovation") return asNiceText(p.innovations_name) || asNiceText(p.innovations) || asNiceText(d.id);
     if (label === "KeyExploitableResult") return asNiceText(p.name) || asNiceText(d.id);
+    if (label === "Standard") return asNiceText(p.standard_code) || asNiceText(p.standard_title) || asNiceText(p.name) || asNiceText(d.id);
+    if (label === "Publication") return asNiceText(p.publication_title) || asNiceText(p.title) || asNiceText(p.name) || asNiceText(d.id);
     if (label === "Phase") return asNiceText(p.phase_id) || asNiceText(p.phases) || asNiceText(p.name) || asNiceText(d.id);
     if (label === "CircularPath" || label === "Path") return asNiceText(p.name) || asNiceText(p.phase_path) || asNiceText(d.id);
 
@@ -385,6 +399,8 @@
     if (label === "Demonstration") return 21;
     if (label === "Innovation") return 21;
     if (label === "KeyExploitableResult") return 21;
+    if (label === "Standard") return 36;
+    if (label === "Publication") return 30;
     if (label === "Phase") return 18;
     if (label === "CircularPath" || label === "Path") return 20;
     return 16;
@@ -422,12 +438,13 @@
     const props = d.properties || {};
 
     const nameKeys = [
-      "name","title",
+      "name","title","publication_title",
       "innovations_name","innovations",
       "deliverables_name","deliverables_no",
       "demonstrations","demonstrations_type",
       "partners","partners_legalname",
-      "material","phase_id","phases","phase_path"
+      "material","phase_id","phases","phase_path",
+      "standard_code","standard_title"
     ];
 
     const skipKeys = new Set([
@@ -510,6 +527,8 @@
     if (L === "demonstration") return "HUB_DEMO";
     if (L === "innovation") return "HUB_INNO";
     if (L === "keyexploitatableresult") return "HUB_KER";
+    if (L === "standard") return "HUB_STANDARD";
+    if (L === "publication") return "HUB_PUBLICATION";
     return null;
   }
 
@@ -538,7 +557,7 @@
     const w = cy.width(), h = cy.height();
     const cx = w * 0.47;
     const cyy = h * 0.55;
-    const R = Math.min(w,h) * 0.28;
+    const R = Math.min(w,h) * 0.30;
 
     const hubs = HUBS.map(h => cy.getElementById(h.id));
     hubs.forEach((node, i) => {
@@ -618,16 +637,18 @@
 
     const nodes = group.toArray();
     const startAngle = -Math.PI / 2;
-    const perRing = 18;
-    const baseR   = 260;
-    const ringGap = 95;
+    const perRing = 14;
+    const baseR   = 320;
+    const ringGap = 120;
 
-    nodes.forEach((n, i) => {
-      const ring = Math.floor(i / perRing);
-      const idx  = i % perRing;
-      const ringCount = Math.min(perRing, nodes.length - ring * perRing);
-      const radius = baseR + ring * ringGap;
-      const a = startAngle + (2 * Math.PI * idx) / Math.max(ringCount, 1);
+      nodes.forEach((n, i) => {
+  const spacing = 70;                 // vertical gap between nodes
+  const listX = hub.x + 220;         // distance from hub
+  const startY = hub.y - ((nodes.length - 1) * spacing) / 2;
+
+  n.x = listX;
+  n.y = startY + i * spacing;
+});
 
       n.position({
         x: center.x + radius * Math.cos(a),
@@ -638,7 +659,7 @@
     });
 
     applyFilters();
-    cy.fit(cy.elements().filter(e => e.style("display") !== "none"), 60);
+    cy.fit(cy.elements().filter(e => e.style("display") !== "none"), 80);
 
     document.getElementById("details").innerHTML =
       `<div class="muted"><b>${label}</b> opened. Nodes shown: <b>${group.length}</b></div>`;
@@ -1124,6 +1145,8 @@
       return;
     }
 
+    let publicationCounter = 1;
+
     const realNodes = elements.nodes.map(n => {
       const d = n.data || n;
       const labels = Array.isArray(d.labels || (d.data?.labels)) ? (d.labels || (d.data?.labels) || []) : [];
@@ -1132,7 +1155,12 @@
 
       const nodeData = { id: String(id), labels, properties };
       const label = getPrimaryKnownLabel(labels);
-      const title = pickNodeLabel(nodeData);
+
+      let title = pickNodeLabel(nodeData);
+
+      if (label === "Publication") {
+        title = `P${publicationCounter++}`;
+      }
 
       let logo = null;
       if (label === "Innovation") {
@@ -1189,16 +1217,16 @@
       `Nodes: <b>${realNodes.length}</b> • Edges: <b>${goodEdges.length}</b>`;
 
     const hubNodes = HUBS.map(h => ({
-  data: {
-    id: h.id,
-    label: h.label,
-    title: h.title,
-    color: HUB_COLORS[h.label] || "#B8BFFF",
-    size: 125,
-    kind: "hub",
-    logo: HUB_LOGOS[h.id] || null
-  }
-}));
+      data: {
+        id: h.id,
+        label: h.label,
+        title: h.title,
+        color: HUB_COLORS[h.label] || "#B8BFFF",
+        size: 125,
+        kind: "hub",
+        logo: HUB_LOGOS[h.id] || null
+      }
+    }));
 
     cy = cytoscape({
       container: document.getElementById("cy"),
@@ -1250,9 +1278,9 @@
             "border-color":"rgba(255,255,255,0.18)",
             "label":"data(title)",
             "color":"#E9ECFF",
-            "font-size":12,
+            "font-size":11,
             "text-wrap":"wrap",
-            "text-max-width":120,
+            "text-max-width":90,
             "text-outline-width":4,
             "text-outline-color":"#000",
             "shadow-blur":16,
@@ -1261,39 +1289,39 @@
           }
         },
         {
-  selector:'node[kind="hub"]',
-  style:{
-    "shape": "round-rectangle",
-    "width": 120,
-    "height": 120,
+          selector:'node[kind="hub"]',
+          style:{
+            "shape": "round-rectangle",
+            "width": 120,
+            "height": 120,
 
-    "background-color": "#ffffff",
-    "background-image": "data(logo)",
-    "background-fit": "contain",
-    "background-width": "72%",
-    "background-height": "72%",
-    "background-position-x": "50%",
-    "background-position-y": "38%",
-    "background-repeat": "no-repeat",
+            "background-color": "#ffffff",
+            "background-image": "data(logo)",
+            "background-fit": "contain",
+            "background-width": "72%",
+            "background-height": "72%",
+            "background-position-x": "50%",
+            "background-position-y": "38%",
+            "background-repeat": "no-repeat",
 
-    "border-width": 4,
-    "border-color": "rgba(233,236,255,0.35)",
+            "border-width": 4,
+            "border-color": "rgba(233,236,255,0.35)",
 
-    "label": "data(title)",
-    "color": "#FFF",
-    "font-size": 16,
-    "font-weight": "bold",
-    "text-valign": "bottom",
-    "text-margin-y": 10,
+            "label": "data(title)",
+            "color": "#FFF",
+            "font-size": 16,
+            "font-weight": "bold",
+            "text-valign": "bottom",
+            "text-margin-y": 10,
 
-    "text-outline-width": 5,
-    "text-outline-color": "#000",
+            "text-outline-width": 5,
+            "text-outline-color": "#000",
 
-    "shadow-blur": 25,
-    "shadow-color": "data(color)",
-    "shadow-opacity": 0.60
-  }
-},
+            "shadow-blur": 25,
+            "shadow-color": "data(color)",
+            "shadow-opacity": 0.60
+          }
+        },
 
         {
           selector:"edge",
